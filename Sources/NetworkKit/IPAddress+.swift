@@ -7,6 +7,7 @@
 
 import Foundation
 import Network
+
 extension IPv4Address: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -72,5 +73,17 @@ public extension IPv6Address {
         }
 
         self.init(addressData)
+    }
+}
+
+public extension IPv4Address {
+    var isLocalAddress: Bool {
+        return self.isLoopback || self.isLinkLocal || self.isMulticast
+    }
+}
+
+public extension IPv6Address {
+    var isLocalAddress: Bool {
+        return self.isLoopback || self.isLinkLocal || self.isUniqueLocal || self.isMulticast
     }
 }
