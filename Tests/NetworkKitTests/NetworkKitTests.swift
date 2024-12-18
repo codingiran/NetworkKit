@@ -61,4 +61,22 @@ final class NetworkKitTests: XCTestCase {
             debugPrint("--\(iPv6Address)")
         }
     }
+
+    func testCurrentWiFiSSID() {
+        var date = Date()
+        let ssid = WiFiSSID.currentWiFiSSID(tryLegacy: true)
+        var interval = Date().timeIntervalSince(date)
+        debugPrint("--\(ssid)")
+        debugPrint("--\(interval)")
+//        date = Date()
+//        let ssid1 = WiFiUtils.currentSSIDLegacy()
+//        interval = Date().timeIntervalSince(date)
+//        debugPrint("--\(ssid1)")
+//        debugPrint("--\(interval)")
+//        date = Date()
+//        let ssid2 = WiFiUtils.currentWiFiSSIDLegacySlow()
+//        interval = Date().timeIntervalSince(date)
+//        debugPrint("--\(ssid2)")
+//        debugPrint("--\(interval)")
+    }
 }
