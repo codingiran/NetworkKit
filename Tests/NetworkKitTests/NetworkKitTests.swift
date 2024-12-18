@@ -10,9 +10,13 @@ final class NetworkKitTests: XCTestCase {
         // Defining Test Cases and Test Methods
         // https://developer.apple.com/documentation/xctest/defining_test_cases_and_test_methods
     }
-    
+
     func testInterfaceAll() throws {
-        let interfaces = NetworkKit.Interface.allInterfaces().filter { $0.family == .ipv6 }
+        let allInterfaces = NetworkKit.Interface.allInterfaces()
+        let interfaces = NetworkKit.Interface.interfaces { name, _ in
+            name == "en0"
+//            family == .ethernet && name.hasPrefix("en")
+        }
         debugPrint("--\(interfaces)")
     }
 
@@ -28,7 +32,7 @@ final class NetworkKitTests: XCTestCase {
 //            let isIPv4Compatabile = iPv6Address.isIPv4Compatabile
 //            debugPrint("--\(iPv6Address)")
 //        }
-        
+
 //        if let iPv6Address = IPv6Address("fd95:62dd:df12:0:10ca:5707:ed29:f4f5") {
 //            let isLinkLocal = iPv6Address.isLinkLocal
 //            let isUniqueLocal = iPv6Address.isUniqueLocal
@@ -40,11 +44,11 @@ final class NetworkKitTests: XCTestCase {
 //            let isIPv4Compatabile = iPv6Address.isIPv4Compatabile
 //            debugPrint("--\(iPv6Address)")
 //        }
-        
+
         // "fd95:62dd:df12:0:10ca:5707:ed29:f4f5"
         // fd16:3a55:1a62::2
         // 240a:42a6:b400:266a:5ceb:7d8:7693:eaa
-        
+
         if let iPv6Address = IPv6Address("240a:42a6:b400:266a:5ceb:7d8:7693:eaa") {
             let isLinkLocal = iPv6Address.isLinkLocal
             let isUniqueLocal = iPv6Address.isUniqueLocal
