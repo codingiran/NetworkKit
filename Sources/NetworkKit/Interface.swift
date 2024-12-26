@@ -19,43 +19,43 @@ func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
  */
 public struct Interface {
     public var id = UUID()
-    
+
     /// `IFF_RUNNING` flag of `ifaddrs->ifa_flags`.
     public var isRunning: Bool { return running }
-    
+
     /// `IFF_UP` flag of `ifaddrs->ifa_flags`.
     public var isUp: Bool { return up }
-    
+
     /// `IFF_LOOPBACK` flag of `ifaddrs->ifa_flags`.
     public var isLoopback: Bool { return loopback }
-    
+
     /// `IFF_MULTICAST` flag of `ifaddrs->ifa_flags`.
     public var supportsMulticast: Bool { return multicastSupported }
 
     /// Field `ifaddrs->ifa_name`.
     public let name: String
-    
+
     /// Field `ifaddrs->ifa_addr->sa_family`.
     public let family: Family
-    
+
     /// Hardware address of the interface.
     public let hardwareAddress: String?
 
     /// When family is IPv4 and IPv6, extracted from `ifaddrs->ifa_addr`
     /// When family is Ethernet, extracted from `ifaddrs->ifa_addr->sdl_data`.
     public let address: String?
-    
+
     /// Extracted from `ifaddrs->ifa_netmask`, supports both IPv4 and IPv6.
     public let netmask: String?
-    
+
     /// Extracted from `ifaddrs->ifa_dstaddr`. Not applicable for IPv6.
     public let broadcastAddress: String?
-    
+
     fileprivate let running: Bool
     fileprivate let up: Bool
     fileprivate let loopback: Bool
     fileprivate let multicastSupported: Bool
-    
+
     /// Initialize a new Interface with the given properties.
     public init(name: String,
                 family: Family,
@@ -95,13 +95,13 @@ public struct Interface {
                   multicastSupported: (flags & IFF_MULTICAST) == IFF_MULTICAST,
                   broadcastAddress: (broadcastValid && destinationAddress(data) != nil) ? Interface.extractAddress(destinationAddress(data)) : nil)
     }
-    
+
     /**
      * Creates the network format representation of the interface's IP address. Wraps `inet_pton`.
      */
     public var addressBytes: [UInt8]? {
         guard let addr = address else { return nil }
-        
+
         let af: Int32
         let len: Int
         switch family {
@@ -125,7 +125,7 @@ public extension Interface {
     static func allInterfaces() -> [Interface] {
         interfaces { $1 == .ipv4 || $1 == .ipv6 }
     }
-    
+
     /// Return all interfaces that match the given condition.
     /// ifConfig 文档: https://man7.org/linux/man-pages/man8/ifconfig.8.html#OPTIONS
     /// - Parameter condition: A closure that takes a name and a family and returns a boolean.
@@ -182,7 +182,7 @@ private extension Interface {
         }
         return nil
     }
-    
+
     static func extractAddress_ipv4(_ address: UnsafeMutablePointer<sockaddr>) -> String? {
         guard address.pointee.sa_family == sa_family_t(AF_INET) else { return nil }
         return address.withMemoryRebound(to: sockaddr.self, capacity: 1) { addr in
@@ -200,13 +200,13 @@ private extension Interface {
             return address
         }
     }
-    
+
     static func extractAddress_ipv6(_ address: UnsafeMutablePointer<sockaddr>) -> String? {
         guard address.pointee.sa_family == sa_family_t(AF_INET6) else { return nil }
         var ip = [Int8](repeating: Int8(0), count: Int(INET6_ADDRSTRLEN))
         return inetNtoP(address, ip: &ip)
     }
-    
+
     static func extractAddress_mac(_ address: UnsafeMutablePointer<sockaddr>) -> String? {
         guard address.pointee.sa_family == sa_family_t(AF_LINK) else { return nil }
         let socketAddress = address.withMemoryRebound(to: sockaddr_dl.self, capacity: 1) { $0 }
@@ -223,14 +223,14 @@ private extension Interface {
         let macAddress = macAddressBytes.map { String(format: "%02x", $0) }.joined(separator: ":")
         return macAddress
     }
-    
+
     static func inetNtoP(_ addr: UnsafeMutablePointer<sockaddr>, ip: UnsafeMutablePointer<Int8>) -> String? {
         return addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { addr6 in
             let conversion: UnsafePointer<CChar> = inet_ntop(AF_INET6, &addr6.pointee.sin6_addr, ip, socklen_t(INET6_ADDRSTRLEN))
             return String(cString: conversion)
         }
     }
-    
+
     static func extractHardwareAddress(_ data: ifaddrs) -> String? {
         #if os(macOS)
         guard let matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, String(cString: data.ifa_name)) else {
@@ -283,7 +283,7 @@ public extension Interface {
         case ethernet
         /// Used in case of errors.
         case other
-        
+
         /// String representation of the address family.
         public func toString() -> String {
             switch self {
@@ -313,7 +313,7 @@ extension Interface: Identifiable, Equatable, Codable {
 extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
     /// Returns the interface name.
     public var description: String { return name }
-    
+
     /// Returns a string containing a few properties of the Interface.
     public var debugDescription: String {
         var s = "Interface name:\(name) family:\(family)"
@@ -325,3 +325,57 @@ extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
         return s
     }
 }
+
+#if canImport(SystemConfiguration)
+
+import SystemConfiguration
+
+#if os(macOS)
+
+@available(macOS 10.15, *)
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+public struct NetworkInterface {
+    public let hardwarePortName: String
+    public let bsdName: String
+    public let ethernetAddress: String
+    public let interfaceType: String
+
+    public init(hardwarePortName: String, bsdName: String, ethernetAddress: String, interfaceType: String) {
+        self.hardwarePortName = hardwarePortName
+        self.bsdName = bsdName
+        self.ethernetAddress = ethernetAddress
+        self.interfaceType = interfaceType
+    }
+}
+
+public extension Interface {
+    @available(macOS 10.15, *)
+    @available(iOS, unavailable)
+    @available(tvOS, unavailable)
+    @available(watchOS, unavailable)
+    static func allNetworkInterfaceInfo() -> [NetworkInterface] {
+        var interfacesInfo: [NetworkInterface] = []
+        if let allInterfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] {
+            for interface in allInterfaces {
+                if let hardwarePortName = SCNetworkInterfaceGetLocalizedDisplayName(interface),
+                   let bsdName = SCNetworkInterfaceGetBSDName(interface),
+                   let ethernetAddress = SCNetworkInterfaceGetHardwareAddressString(interface),
+                   let kind = SCNetworkInterfaceGetInterfaceType(interface)
+                {
+                    let interfaceInfo = NetworkInterface(hardwarePortName: hardwarePortName as String,
+                                                         bsdName: bsdName as String,
+                                                         ethernetAddress: ethernetAddress as String,
+                                                         interfaceType: kind as String)
+                    interfacesInfo.append(interfaceInfo)
+                }
+            }
+        }
+        return interfacesInfo
+    }
+}
+
+#endif
+
+#endif

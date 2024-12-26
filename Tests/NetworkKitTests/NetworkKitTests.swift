@@ -20,6 +20,19 @@ final class NetworkKitTests: XCTestCase {
         debugPrint("--\(interfaces)")
     }
 
+    func testAllInterfaces() throws {
+        let allInterfaces = NetworkKit.Interface.getNetworkInterfaceInfo()
+        debugPrint("---")
+    }
+
+    func testAllMACInterface() throws {
+        var allInterfaces = NetworkKit.Interface.interfaces { _, family in
+            family == .ethernet
+        }
+        allInterfaces = allInterfaces.filter { $0.isUp && $0.isRunning && !$0.isLoopback && $0.hardwareAddress != nil }
+        debugPrint("---")
+    }
+
     func testIPv6Address() throws {
 //        if let iPv6Address = IPv6Address("fe80::c07:3182:9e56:aef8") {
 //            let isLinkLocal = iPv6Address.isLinkLocal
