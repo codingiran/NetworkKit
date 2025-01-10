@@ -13,6 +13,7 @@ final class NetworkKitTests: XCTestCase {
 
     func testInterfaceAll() throws {
         let allInterfaces = NetworkKit.Interface.allInterfaces()
+        debugPrint("--\(allInterfaces)")
         let interfaces = NetworkKit.Interface.interfaces { name, _ in
             name == "en0"
 //            family == .ethernet && name.hasPrefix("en")
@@ -21,8 +22,11 @@ final class NetworkKitTests: XCTestCase {
     }
 
     func testAllInterfaces() throws {
-        let allInterfaces = NetworkKit.Interface.getNetworkInterfaceInfo()
-        debugPrint("---")
+        let allInterfaces = NetworkKit.Interface.interfaces { _, _ in
+            true
+        }
+        let allInterfaceNames = Set(allInterfaces.map { $0.name })
+        debugPrint("---\(allInterfaceNames)")
     }
 
     func testAllMACInterface() throws {
@@ -31,6 +35,11 @@ final class NetworkKitTests: XCTestCase {
         }
         allInterfaces = allInterfaces.filter { $0.isUp && $0.isRunning && !$0.isLoopback && $0.hardwareAddress != nil }
         debugPrint("---")
+    }
+
+    func testInterfaceNameList() throws {
+        let interfaceNames = NetworkKit.Interface.interfaceNameList()
+        debugPrint("--\(interfaceNames)")
     }
 
     func testIPv6Address() throws {
@@ -71,16 +80,16 @@ final class NetworkKitTests: XCTestCase {
             let isLoopback = iPv6Address.isLoopback
             let isIPv4Mapped = iPv6Address.isIPv4Mapped
             let isIPv4Compatabile = iPv6Address.isIPv4Compatabile
-            debugPrint("--\(iPv6Address)")
+            debugPrint("isLinkLocal: \(isLinkLocal), isUniqueLocal: \(isUniqueLocal), is6to4: \(is6to4), isAny: \(isAny), isMulticast: \(isMulticast), isIPv4Mapped: \(isIPv4Mapped), isIPv4Compatabile: \(isIPv4Compatabile)")
         }
     }
 
     func testCurrentWiFiSSID() {
-        var date = Date()
-        let ssid = WiFiSSID.currentWiFiSSID(tryLegacy: true)
-        var interval = Date().timeIntervalSince(date)
-        debugPrint("--\(ssid)")
-        debugPrint("--\(interval)")
+//        var date = Date()
+//        let ssid = WiFiSSID.currentWiFiSSID(tryLegacy: true)
+//        var interval = Date().timeIntervalSince(date)
+//        debugPrint("--\(ssid)")
+//        debugPrint("--\(interval)")
 //        date = Date()
 //        let ssid1 = WiFiUtils.currentSSIDLegacy()
 //        interval = Date().timeIntervalSince(date)

@@ -130,7 +130,7 @@ public extension Interface {
     /// ifConfig 文档: https://man7.org/linux/man-pages/man8/ifconfig.8.html#OPTIONS
     /// - Parameter condition: A closure that takes a name and a family and returns a boolean.
     /// - Returns: An array of interfaces that match the given condition.
-    static func interfaces(_ condition: (String, Family) -> Bool) -> [Interface] {
+    static func interfaces(_ condition: (String, Family) -> Bool = { _, _ in true }) -> [Interface] {
         var interfaces: [Interface] = []
         var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
         if getifaddrs(&ifaddrsPtr) == 0 {
@@ -147,6 +147,18 @@ public extension Interface {
             freeifaddrs(ifaddrsPtr)
         }
         return interfaces
+    }
+
+    /// Return all interface names that match the given condition.
+    /// - Parameter condition: A closure that takes a name and a family and returns a boolean.
+    /// - Returns: An array of interface names that match the given condition.
+    static func interfaceNameList(_ condition: (String, Family) -> Bool = { _, _ in true }) -> [String] {
+        let nameSet: Set<String> = Set(interfaces(condition).compactMap {
+            let name = $0.name
+            guard !name.isEmpty else { return nil }
+            return name
+        })
+        return Array(nameSet)
     }
 }
 
