@@ -20,7 +20,7 @@ import SystemConfiguration
 import SystemConfiguration.CaptiveNetwork
 #endif
 
-public enum WiFiSSID {
+public enum WiFiSSID: Sendable {
     @available(macOS 10.15, *)
     @available(iOS 13.0, *)
     @available(tvOS, unavailable)

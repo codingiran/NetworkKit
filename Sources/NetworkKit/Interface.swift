@@ -17,7 +17,7 @@ func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
  * This class represents a network interface in your system. For example, `en0` with a certain IP address.
  * It is a wrapper around the `getifaddrs` system call.
  */
-public struct Interface {
+public struct Interface: Sendable {
     public var id = UUID()
 
     /// `IFF_RUNNING` flag of `ifaddrs->ifa_flags`.
@@ -286,7 +286,7 @@ private extension Interface {
 
 public extension Interface {
     /// The network interface family (IPv4 or IPv6).
-    enum Family: Int, Equatable, Codable {
+    enum Family: Int, Equatable, Codable, Sendable {
         /// IPv4.
         case ipv4
         /// IPv6.
@@ -348,7 +348,7 @@ import SystemConfiguration
 @available(iOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-public struct NetworkInterface {
+public struct NetworkInterface: Sendable {
     public let hardwarePortName: String
     public let bsdName: String
     public let ethernetAddress: String

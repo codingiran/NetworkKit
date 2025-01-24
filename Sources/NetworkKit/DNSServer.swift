@@ -8,7 +8,7 @@
 import Foundation
 import Network
 
-public struct DNSServer {
+public struct DNSServer: Sendable {
     public let address: Network.IPAddress
 
     public init(address: Network.IPAddress) {

@@ -8,7 +8,7 @@
 import Foundation
 import Network
 
-public enum DNSResolver {}
+public enum DNSResolver: Sendable {}
 
 public extension DNSResolver {
     /// Concurrent queue used for DNS resolutions
@@ -141,7 +141,7 @@ extension Endpoint {
 }
 
 /// An error type describing DNS resolution error
-public struct DNSResolutionError: LocalizedError {
+public struct DNSResolutionError: LocalizedError, Sendable {
     public let errorCode: Int32
     public let address: String
 

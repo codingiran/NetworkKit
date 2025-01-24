@@ -8,7 +8,7 @@
 import Foundation
 import Network
 
-public struct IPAddressRange {
+public struct IPAddressRange: Sendable {
     public let address: IPAddress
     public let networkPrefixLength: UInt8
 
