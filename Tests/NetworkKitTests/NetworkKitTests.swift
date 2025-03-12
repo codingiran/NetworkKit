@@ -101,4 +101,15 @@ final class NetworkKitTests: XCTestCase {
 //        debugPrint("--\(ssid2)")
 //        debugPrint("--\(interval)")
     }
+    
+    func testIpRangeContains() {
+        guard let range = IPAddressRange(from: "192.168.1.0/24") else { return }
+//        if let ip1 = IPv4Address("192.168.1.100") {
+//            let result1 = range.contains(ip1)
+//            debugPrint("--\(result1)")
+//        }
+        let ip2 = "192.168.11.10"
+        let result1 = range.contains(ip2)
+        debugPrint("--\(result1)")
+    }
 }

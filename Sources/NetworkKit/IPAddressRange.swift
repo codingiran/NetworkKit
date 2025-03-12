@@ -139,3 +139,37 @@ public extension IPAddressRange {
         fatalError()
     }
 }
+
+public extension IPAddressRange {
+    func contains(_ ip: IPAddress) -> Bool {
+        guard ip.isIPv4 == address.isIPv4 else {
+            return false
+        }
+
+        let subnet = subnetMask().rawValue
+        var maskedIP = Data(ip.rawValue)
+        if subnet.count != maskedIP.count {
+            return false
+        }
+        for i in 0 ..< subnet.count {
+            maskedIP[i] &= subnet[i]
+        }
+        return maskedIP == maskedAddress().rawValue
+    }
+
+    func contains(_ ip: String) -> Bool {
+        guard let ipAddress: IPAddress = {
+            if let ipv4 = IPv4Address(ip) {
+                return ipv4
+            }
+            if let ipv6 = IPv6Address(ip) {
+                return ipv6
+            }
+            return nil
+        }() else {
+            return false
+        }
+
+        return contains(ipAddress)
+    }
+}
