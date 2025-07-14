@@ -168,14 +168,11 @@ private extension Interface {
         let addr = data.ifa_addr.pointee
         if addr.sa_family == InetFamily(AF_INET) {
             family = .ipv4
-        }
-        else if addr.sa_family == InetFamily(AF_INET6) {
+        } else if addr.sa_family == InetFamily(AF_INET6) {
             family = .ipv6
-        }
-        else if addr.sa_family == InetFamily(AF_LINK) {
+        } else if addr.sa_family == InetFamily(AF_LINK) {
             family = .ethernet
-        }
-        else {
+        } else {
             family = .other
         }
         return family
@@ -203,9 +200,8 @@ private extension Interface {
             if getnameinfo(&addr.pointee, socklen_t(socketLength4(addr.pointee)), &hostname,
                            socklen_t(hostname.count), nil, socklen_t(0), NI_NUMERICHOST) == 0
             {
-                address = String(cString: hostname)
-            }
-            else {
+                address = String(utf8String: hostname)
+            } else {
                 //            var error = String.fromCString(gai_strerror(errno))!
                 //            println("ERROR: \(error)")
             }
@@ -245,41 +241,41 @@ private extension Interface {
 
     static func extractHardwareAddress(_ data: ifaddrs) -> String? {
         #if os(macOS)
-        guard let matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, String(cString: data.ifa_name)) else {
-            return nil
-        }
-        var iterator: io_iterator_t = 0
-        defer {
-            IOObjectRelease(iterator)
-        }
-        guard IOServiceGetMatchingServices(kIOMasterPortDefault, matchingDict, &iterator) == KERN_SUCCESS else {
-            return nil
-        }
-        var macAddress: [UInt8]?
-        var intfService = IOIteratorNext(iterator)
+            guard let matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, String(cString: data.ifa_name)) else {
+                return nil
+            }
+            var iterator: io_iterator_t = 0
+            defer {
+                IOObjectRelease(iterator)
+            }
+            guard IOServiceGetMatchingServices(kIOMasterPortDefault, matchingDict, &iterator) == KERN_SUCCESS else {
+                return nil
+            }
+            var macAddress: [UInt8]?
+            var intfService = IOIteratorNext(iterator)
 
-        while intfService != 0 {
-            var controllerService: io_object_t = 0
+            while intfService != 0 {
+                var controllerService: io_object_t = 0
 
-            if IORegistryEntryGetParentEntry(intfService, kIOServicePlane, &controllerService) == KERN_SUCCESS {
-                if let dataUM = IORegistryEntryCreateCFProperty(controllerService, "IOMACAddress" as CFString, kCFAllocatorDefault, 0) {
-                    let data = (dataUM.takeRetainedValue() as! CFData) as Data
-                    macAddress = [0, 0, 0, 0, 0, 0]
-                    data.copyBytes(to: &macAddress!, count: macAddress!.count)
+                if IORegistryEntryGetParentEntry(intfService, kIOServicePlane, &controllerService) == KERN_SUCCESS {
+                    if let dataUM = IORegistryEntryCreateCFProperty(controllerService, "IOMACAddress" as CFString, kCFAllocatorDefault, 0) {
+                        let data = (dataUM.takeRetainedValue() as! CFData) as Data
+                        macAddress = [0, 0, 0, 0, 0, 0]
+                        data.copyBytes(to: &macAddress!, count: macAddress!.count)
+                    }
+
+                    IOObjectRelease(controllerService)
                 }
 
-                IOObjectRelease(controllerService)
+                IOObjectRelease(intfService)
+                intfService = IOIteratorNext(iterator)
             }
-
-            IOObjectRelease(intfService)
-            intfService = IOIteratorNext(iterator)
-        }
-        guard let macAddress else {
-            return nil
-        }
-        return macAddress.map { String(format: "%02x", $0) }.joined(separator: ":")
+            guard let macAddress else {
+                return nil
+            }
+            return macAddress.map { String(format: "%02x", $0) }.joined(separator: ":")
         #else
-        return nil
+            return nil
         #endif
     }
 }
@@ -340,54 +336,54 @@ extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
 
 #if canImport(SystemConfiguration)
 
-import SystemConfiguration
+    import SystemConfiguration
 
-#if os(macOS)
+    #if os(macOS)
 
-@available(macOS 10.15, *)
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public struct NetworkInterface: Sendable {
-    public let hardwarePortName: String
-    public let bsdName: String
-    public let ethernetAddress: String
-    public let interfaceType: String
+        @available(macOS 10.15, *)
+        @available(iOS, unavailable)
+        @available(tvOS, unavailable)
+        @available(watchOS, unavailable)
+        public struct NetworkInterface: Sendable {
+            public let hardwarePortName: String
+            public let bsdName: String
+            public let ethernetAddress: String
+            public let interfaceType: String
 
-    public init(hardwarePortName: String, bsdName: String, ethernetAddress: String, interfaceType: String) {
-        self.hardwarePortName = hardwarePortName
-        self.bsdName = bsdName
-        self.ethernetAddress = ethernetAddress
-        self.interfaceType = interfaceType
-    }
-}
-
-public extension Interface {
-    @available(macOS 10.15, *)
-    @available(iOS, unavailable)
-    @available(tvOS, unavailable)
-    @available(watchOS, unavailable)
-    static func allNetworkInterfaceInfo() -> [NetworkInterface] {
-        var interfacesInfo: [NetworkInterface] = []
-        if let allInterfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] {
-            for interface in allInterfaces {
-                if let hardwarePortName = SCNetworkInterfaceGetLocalizedDisplayName(interface),
-                   let bsdName = SCNetworkInterfaceGetBSDName(interface),
-                   let ethernetAddress = SCNetworkInterfaceGetHardwareAddressString(interface),
-                   let kind = SCNetworkInterfaceGetInterfaceType(interface)
-                {
-                    let interfaceInfo = NetworkInterface(hardwarePortName: hardwarePortName as String,
-                                                         bsdName: bsdName as String,
-                                                         ethernetAddress: ethernetAddress as String,
-                                                         interfaceType: kind as String)
-                    interfacesInfo.append(interfaceInfo)
-                }
+            public init(hardwarePortName: String, bsdName: String, ethernetAddress: String, interfaceType: String) {
+                self.hardwarePortName = hardwarePortName
+                self.bsdName = bsdName
+                self.ethernetAddress = ethernetAddress
+                self.interfaceType = interfaceType
             }
         }
-        return interfacesInfo
-    }
-}
 
-#endif
+        public extension Interface {
+            @available(macOS 10.15, *)
+            @available(iOS, unavailable)
+            @available(tvOS, unavailable)
+            @available(watchOS, unavailable)
+            static func allNetworkInterfaceInfo() -> [NetworkInterface] {
+                var interfacesInfo: [NetworkInterface] = []
+                if let allInterfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] {
+                    for interface in allInterfaces {
+                        if let hardwarePortName = SCNetworkInterfaceGetLocalizedDisplayName(interface),
+                           let bsdName = SCNetworkInterfaceGetBSDName(interface),
+                           let ethernetAddress = SCNetworkInterfaceGetHardwareAddressString(interface),
+                           let kind = SCNetworkInterfaceGetInterfaceType(interface)
+                        {
+                            let interfaceInfo = NetworkInterface(hardwarePortName: hardwarePortName as String,
+                                                                 bsdName: bsdName as String,
+                                                                 ethernetAddress: ethernetAddress as String,
+                                                                 interfaceType: kind as String)
+                            interfacesInfo.append(interfaceInfo)
+                        }
+                    }
+                }
+                return interfacesInfo
+            }
+        }
+
+    #endif
 
 #endif

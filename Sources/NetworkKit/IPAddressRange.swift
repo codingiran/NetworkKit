@@ -98,14 +98,14 @@ public extension IPAddressRange {
                 UInt8(truncatingIfNeeded: mask >> 24),
                 UInt8(truncatingIfNeeded: mask >> 16),
                 UInt8(truncatingIfNeeded: mask >> 8),
-                UInt8(truncatingIfNeeded: mask >> 0)
+                UInt8(truncatingIfNeeded: mask >> 0),
             ])
             return IPv4Address(bytes)!
         }
         if address is IPv6Address {
             var bytes = Data(repeating: 0, count: 16)
             for i in 0 ..< Int(networkPrefixLength / 8) {
-                bytes[i] = 0xff
+                bytes[i] = 0xFF
             }
             let nibble = networkPrefixLength % 32
             if nibble != 0 {

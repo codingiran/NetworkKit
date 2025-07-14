@@ -55,11 +55,11 @@ extension Endpoint: Codable {
 public extension Endpoint {
     var stringRepresentation: String {
         switch host {
-        case .name(let hostname, _):
+        case let .name(hostname, _):
             return "\(hostname):\(port)"
-        case .ipv4(let address):
+        case let .ipv4(address):
             return "\(address):\(port)"
-        case .ipv6(let address):
+        case let .ipv6(address):
             return "[\(address)]:\(port)"
         @unknown default:
             fatalError()
@@ -113,7 +113,7 @@ public extension Endpoint {
 
     func hostname() -> String? {
         switch host {
-        case .name(let hostname, _):
+        case let .name(hostname, _):
             return hostname
         case .ipv4:
             return nil

@@ -72,13 +72,13 @@ public extension IPv6Address {
 
 public extension IPv4Address {
     var isLocalAddress: Bool {
-        self.isLoopback || self.isLinkLocal || self.isMulticast
+        isLoopback || isLinkLocal || isMulticast
     }
 }
 
 public extension IPv6Address {
     var isLocalAddress: Bool {
-        self.isLoopback || self.isLinkLocal || self.isUniqueLocal || self.isMulticast
+        isLoopback || isLinkLocal || isUniqueLocal || isMulticast
     }
 }
 

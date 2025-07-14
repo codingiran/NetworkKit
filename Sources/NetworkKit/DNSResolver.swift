@@ -14,7 +14,7 @@ public extension DNSResolver {
     /// Concurrent queue used for DNS resolutions
     private static let resolverQueue = DispatchQueue(label: "DNSResolverQueue", qos: .default, attributes: .concurrent)
 
-    static func resolveSync(endpoints: [Endpoint?]) -> [Result<Endpoint, DNSResolutionError>?] {
+    static func resolveAsync(endpoints: [Endpoint?]) async throws -> [Result<Endpoint, DNSResolutionError>?] {
         let isAllEndpointsAlreadyResolved = endpoints.allSatisfy { maybeEndpoint -> Bool in
             maybeEndpoint?.hasHostAsIPAddress() ?? true
         }
@@ -25,7 +25,7 @@ public extension DNSResolver {
             }
         }
 
-        return endpoints.concurrentMap(queue: resolverQueue) { endpoint -> Result<Endpoint, DNSResolutionError>? in
+        return try await endpoints.concurrentMap { endpoint in
             guard let endpoint = endpoint else { return nil }
 
             if endpoint.hasHostAsIPAddress() {
@@ -41,7 +41,7 @@ public extension DNSResolver {
     }
 
     private static func resolveSync(endpoint: Endpoint) throws -> Endpoint {
-        guard case .name(let name, _) = endpoint.host else {
+        guard case let .name(name, _) = endpoint.host else {
             return endpoint
         }
 
@@ -96,46 +96,46 @@ public extension DNSResolver {
 extension Endpoint {
     func withReresolvedIP() throws -> Endpoint {
         #if os(iOS)
-        let hostname: String
-        switch host {
-        case .name(let name, _):
-            hostname = name
-        case .ipv4(let address):
-            hostname = "\(address)"
-        case .ipv6(let address):
-            hostname = "\(address)"
-        @unknown default:
-            fatalError()
-        }
+            let hostname: String
+            switch host {
+            case let .name(name, _):
+                hostname = name
+            case let .ipv4(address):
+                hostname = "\(address)"
+            case let .ipv6(address):
+                hostname = "\(address)"
+            @unknown default:
+                fatalError()
+            }
 
-        var hints = addrinfo()
-        hints.ai_family = AF_UNSPEC
-        hints.ai_socktype = SOCK_DGRAM
-        hints.ai_protocol = IPPROTO_UDP
-        hints.ai_flags = 0 // We set this to zero so that we actually resolve this using DNS64
+            var hints = addrinfo()
+            hints.ai_family = AF_UNSPEC
+            hints.ai_socktype = SOCK_DGRAM
+            hints.ai_protocol = IPPROTO_UDP
+            hints.ai_flags = 0 // We set this to zero so that we actually resolve this using DNS64
 
-        var result: UnsafeMutablePointer<addrinfo>?
-        defer {
-            result.flatMap { freeaddrinfo($0) }
-        }
+            var result: UnsafeMutablePointer<addrinfo>?
+            defer {
+                result.flatMap { freeaddrinfo($0) }
+            }
 
-        let errorCode = getaddrinfo(hostname, "\(port)", &hints, &result)
-        if errorCode != 0 {
-            throw DNSResolutionError(errorCode: errorCode, address: hostname)
-        }
+            let errorCode = getaddrinfo(hostname, "\(port)", &hints, &result)
+            if errorCode != 0 {
+                throw DNSResolutionError(errorCode: errorCode, address: hostname)
+            }
 
-        let addrInfo = result!.pointee
-        if let ipv4Address = IPv4Address(addrInfo: addrInfo) {
-            return Endpoint(host: .ipv4(ipv4Address), port: port)
-        } else if let ipv6Address = IPv6Address(addrInfo: addrInfo) {
-            return Endpoint(host: .ipv6(ipv6Address), port: port)
-        } else {
-            fatalError()
-        }
+            let addrInfo = result!.pointee
+            if let ipv4Address = IPv4Address(addrInfo: addrInfo) {
+                return Endpoint(host: .ipv4(ipv4Address), port: port)
+            } else if let ipv6Address = IPv6Address(addrInfo: addrInfo) {
+                return Endpoint(host: .ipv6(ipv6Address), port: port)
+            } else {
+                fatalError()
+            }
         #elseif os(macOS)
-        return self
+            return self
         #else
-        #error("Unimplemented")
+            #error("Unimplemented")
         #endif
     }
 }
