@@ -23,34 +23,38 @@ final class NetworkKitWiFiSSIDTests: XCTestCase {
         }
     }
 
-    @available(macOS 10.15, *)
-    func testWiFiSSIDCurrentSSIDLegacy() {
-        let ssid = WiFiSSID.currentSSIDLegacy()
-        // This might be nil in testing environment
-        if let ssid = ssid {
-            XCTAssertFalse(ssid.isEmpty)
-        }
-    }
+    #if os(macOS)
 
-    // MARK: - Additional WiFi SSID Tests
-
-    @available(macOS 10.15, iOS 13.0, *)
-    func testWiFiSSIDCurrentSSIDWithTryLegacy() {
-        // Test with tryLegacy = true
-        let ssidWithLegacy = WiFiSSID.currentWiFiSSID(tryLegacy: true)
-
-        // Test with tryLegacy = false (default)
-        let ssidWithoutLegacy = WiFiSSID.currentWiFiSSID(tryLegacy: false)
-
-        // Both might be nil in testing environment, but should not crash
-        if let ssid = ssidWithLegacy {
-            XCTAssertFalse(ssid.isEmpty)
+        @available(macOS 10.15, *)
+        func testWiFiSSIDCurrentSSIDLegacy() {
+            let ssid = WiFiSSID.currentSSIDLegacy()
+            // This might be nil in testing environment
+            if let ssid = ssid {
+                XCTAssertFalse(ssid.isEmpty)
+            }
         }
 
-        if let ssid = ssidWithoutLegacy {
-            XCTAssertFalse(ssid.isEmpty)
+        // MARK: - Additional WiFi SSID Tests
+
+        @available(macOS 10.15, iOS 13.0, *)
+        func testWiFiSSIDCurrentSSIDWithTryLegacy() {
+            // Test with tryLegacy = true
+            let ssidWithLegacy = WiFiSSID.currentWiFiSSID(tryLegacy: true)
+
+            // Test with tryLegacy = false (default)
+            let ssidWithoutLegacy = WiFiSSID.currentWiFiSSID(tryLegacy: false)
+
+            // Both might be nil in testing environment, but should not crash
+            if let ssid = ssidWithLegacy {
+                XCTAssertFalse(ssid.isEmpty)
+            }
+
+            if let ssid = ssidWithoutLegacy {
+                XCTAssertFalse(ssid.isEmpty)
+            }
         }
-    }
+
+    #endif
 
     func testWiFiSSIDCurrentSSIDOfInterface() {
         // Test with a known interface name (might not exist in test environment)
@@ -70,23 +74,27 @@ final class NetworkKitWiFiSSIDTests: XCTestCase {
         XCTAssertNil(invalidSSID)
     }
 
-    @available(macOS 10.15, *)
-    func testWiFiSSIDLegacyMethods() {
-        // Test legacy SSID retrieval
-        let legacySSID = WiFiSSID.currentSSIDLegacy()
+    #if os(macOS)
 
-        // Test slow legacy method
-        let slowLegacySSID = WiFiSSID.currentWiFiSSIDLegacySlow()
+        @available(macOS 10.15, *)
+        func testWiFiSSIDLegacyMethods() {
+            // Test legacy SSID retrieval
+            let legacySSID = WiFiSSID.currentSSIDLegacy()
 
-        // These might be nil in testing environment
-        if let ssid = legacySSID {
-            XCTAssertFalse(ssid.isEmpty)
+            // Test slow legacy method
+            let slowLegacySSID = WiFiSSID.currentWiFiSSIDLegacySlow()
+
+            // These might be nil in testing environment
+            if let ssid = legacySSID {
+                XCTAssertFalse(ssid.isEmpty)
+            }
+
+            if let ssid = slowLegacySSID {
+                XCTAssertFalse(ssid.isEmpty)
+            }
         }
 
-        if let ssid = slowLegacySSID {
-            XCTAssertFalse(ssid.isEmpty)
-        }
-    }
+    #endif
 
     func testWiFiSSIDInterfaceNameRetrieval() {
         let interfaceName = WiFiSSID.currentInterfaceName()
@@ -177,13 +185,17 @@ final class NetworkKitWiFiSSIDTests: XCTestCase {
         }
     }
 
-    @available(macOS 10.15, *)
-    func testWiFiSSIDLegacyMethodPerformance() {
-        // Legacy methods might be slower
-        measure {
-            _ = WiFiSSID.currentSSIDLegacy()
+    #if os(macOS)
+
+        @available(macOS 10.15, *)
+        func testWiFiSSIDLegacyMethodPerformance() {
+            // Legacy methods might be slower
+            measure {
+                _ = WiFiSSID.currentSSIDLegacy()
+            }
         }
-    }
+
+    #endif
 
     func testWiFiSSIDSendableConformance() {
         // WiFiSSID is an enum that should be Sendable

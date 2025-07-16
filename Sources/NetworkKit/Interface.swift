@@ -17,9 +17,7 @@ func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
  * Represents a network interface on the system (e.g., en0 with a specific IP address).
  * Wraps the `getifaddrs` system call.
  */
-public struct Interface: Sendable {
-    public var id = UUID()
-
+public struct Interface: Equatable, Codable, Sendable {
     /// True if the interface is running (`IFF_RUNNING`).
     public var isRunning: Bool { return running }
 
@@ -50,6 +48,9 @@ public struct Interface: Sendable {
     /// The broadcast address of the interface (if applicable).
     public let broadcastAddress: String?
 
+    /// The gateway address of the interface (if applicable).
+    public let gatewayAddress: String?
+
     fileprivate let running: Bool
     fileprivate let up: Bool
     fileprivate let loopback: Bool
@@ -67,6 +68,7 @@ public struct Interface: Sendable {
     ///   - loopback: Whether the interface is a loopback interface.
     ///   - multicastSupported: Whether the interface supports multicast.
     ///   - broadcastAddress: The broadcast address.
+    ///   - gatewayAddress: The gateway address.
     public init(name: String,
                 family: Family,
                 hardwareAddress: String?,
@@ -76,7 +78,8 @@ public struct Interface: Sendable {
                 up: Bool,
                 loopback: Bool,
                 multicastSupported: Bool,
-                broadcastAddress: String?)
+                broadcastAddress: String?,
+                gatewayAddress: String?)
     {
         self.name = name
         self.family = family
@@ -88,13 +91,15 @@ public struct Interface: Sendable {
         self.loopback = loopback
         self.multicastSupported = multicastSupported
         self.broadcastAddress = broadcastAddress
+        self.gatewayAddress = gatewayAddress
     }
 
     private init(data: ifaddrs) {
+        let name = String(cString: data.ifa_name)
         let flags = Flags(data.ifa_flags)
         let broadcastValid: Bool = ((flags & IFF_BROADCAST) == IFF_BROADCAST)
         let family = Interface.extractFamily(data)
-        self.init(name: String(cString: data.ifa_name),
+        self.init(name: name,
                   family: family,
                   hardwareAddress: Interface.extractHardwareAddress(data),
                   address: Interface.extractAddress(data.ifa_addr),
@@ -103,7 +108,8 @@ public struct Interface: Sendable {
                   up: (flags & IFF_UP) == IFF_UP,
                   loopback: (flags & IFF_LOOPBACK) == IFF_LOOPBACK,
                   multicastSupported: (flags & IFF_MULTICAST) == IFF_MULTICAST,
-                  broadcastAddress: (broadcastValid && destinationAddress(data) != nil) ? Interface.extractAddress(destinationAddress(data)) : nil)
+                  broadcastAddress: (broadcastValid && destinationAddress(data) != nil) ? Interface.extractAddress(destinationAddress(data)) : nil,
+                  gatewayAddress: Interface.extractGatewayAddress(name, data.ifa_addr.pointee.sa_family))
     }
 
     /**
@@ -287,6 +293,42 @@ private extension Interface {
             return nil
         #endif
     }
+
+    static func extractGatewayAddress(_ ifa_name: String, _ family: sa_family_t) -> String? {
+        var mib: [Int32] = [CTL_NET,
+                            PF_ROUTE,
+                            0,
+                            0,
+                            NET_RT_DUMP2,
+                            0]
+        let mibSize = u_int(mib.count)
+
+        var bufSize = 0
+        sysctl(&mib, mibSize, nil, &bufSize, nil, 0)
+
+        let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufSize)
+        defer { buf.deallocate() }
+        buf.initialize(repeating: 0, count: bufSize)
+
+        guard sysctl(&mib, mibSize, buf, &bufSize, nil, 0) == 0 else { return nil }
+
+        // Routes
+        var next = buf
+        let lim = next.advanced(by: bufSize)
+        while next < lim {
+            let rtm = next.withMemoryRebound(to: rt_msghdr2.self, capacity: 1) { $0.pointee }
+            var ifname = [CChar](repeating: 0, count: Int(IFNAMSIZ + 1))
+            if_indextoname(UInt32(rtm.rtm_index), &ifname)
+
+            if String(utf8String: ifname) == ifa_name, let addr = getGateFromRTM(rtm, next, family) {
+                return addr
+            }
+
+            next = next.advanced(by: Int(rtm.rtm_msglen))
+        }
+
+        return nil
+    }
 }
 
 public extension Interface {
@@ -310,20 +352,6 @@ public extension Interface {
             default: return "other"
             }
         }
-    }
-}
-
-extension Interface: Identifiable, Equatable, Codable {
-    public static func == (lhs: Interface, rhs: Interface) -> Bool {
-        return lhs.name == rhs.name
-            && lhs.family == rhs.family
-            && lhs.hardwareAddress == rhs.hardwareAddress
-            && lhs.address == rhs.address
-            && lhs.netmask == rhs.netmask
-            && lhs.running == rhs.running
-            && lhs.up == rhs.up
-            && lhs.loopback == rhs.loopback
-            && lhs.multicastSupported == rhs.multicastSupported
     }
 }
 
@@ -396,3 +424,69 @@ extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
     #endif
 
 #endif
+private extension Interface {
+    #if !os(macOS)
+
+        private static let RTAX_GATEWAY = 1
+        private static let RTAX_MAX = 8
+
+        private struct rt_metrics {
+            public var rmx_locks: UInt32 /* Kernel leaves these values alone */
+            public var rmx_mtu: UInt32 /* MTU for this path */
+            public var rmx_hopcount: UInt32 /* max hops expected */
+            public var rmx_expire: Int32 /* lifetime for route, e.g. redirect */
+            public var rmx_recvpipe: UInt32 /* inbound delay-bandwidth product */
+            public var rmx_sendpipe: UInt32 /* outbound delay-bandwidth product */
+            public var rmx_ssthresh: UInt32 /* outbound gateway buffer limit */
+            public var rmx_rtt: UInt32 /* estimated round trip time */
+            public var rmx_rttvar: UInt32 /* estimated rtt variance */
+            public var rmx_pksent: UInt32 /* packets sent using this route */
+            public var rmx_state: UInt32 /* route state */
+            public var rmx_filler: (UInt32, UInt32, UInt32) /* will be used for TCP's peer-MSS cache */
+        }
+
+        private struct rt_msghdr2 {
+            public var rtm_msglen: u_short /* to skip over non-understood messages */
+            public var rtm_version: u_char /* future binary compatibility */
+            public var rtm_type: u_char /* message type */
+            public var rtm_index: u_short /* index for associated ifp */
+            public var rtm_flags: Int32 /* flags, incl. kern & message, e.g. DONE */
+            public var rtm_addrs: Int32 /* bitmask identifying sockaddrs in msg */
+            public var rtm_refcnt: Int32 /* reference count */
+            public var rtm_parentflags: Int32 /* flags of the parent route */
+            public var rtm_reserved: Int32 /* reserved field set to 0 */
+            public var rtm_use: Int32 /* from rtentry */
+            public var rtm_inits: UInt32 /* which metrics we are initializing */
+            public var rtm_rmx: rt_metrics /* metrics themselves */
+        }
+
+    #endif
+
+    private static func getGateFromRTM(_ rtm: rt_msghdr2, _ ptr: UnsafeMutablePointer<UInt8>, _ family: sa_family_t) -> String? {
+        var rawAddr = ptr.advanced(by: MemoryLayout<rt_msghdr2>.stride)
+
+        for idx in 0 ..< RTAX_MAX {
+            let sockAddr = rawAddr.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0.pointee }
+
+            if (rtm.rtm_addrs & (1 << idx)) != 0 && idx == RTAX_GATEWAY {
+                if family == sockAddr.sa_family {
+                    if family == AF_INET6 {
+                        var sAddr6 = rawAddr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { $0.pointee }.sin6_addr
+                        var addrV6 = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+                        inet_ntop(AF_INET6, &sAddr6, &addrV6, socklen_t(INET6_ADDRSTRLEN))
+                        return String(cString: addrV6, encoding: .ascii)
+                    }
+                    if family == AF_INET {
+                        let sAddr = rawAddr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }.sin_addr
+                        // Take the first match, assuming its destination is "default"
+                        return String(cString: inet_ntoa(sAddr), encoding: .ascii)
+                    }
+                }
+            }
+
+            rawAddr = rawAddr.advanced(by: Int(sockAddr.sa_len))
+        }
+
+        return nil
+    }
+}

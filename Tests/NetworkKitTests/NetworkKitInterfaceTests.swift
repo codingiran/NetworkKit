@@ -16,10 +16,16 @@ final class NetworkKitInterfaceTests: XCTestCase {
     }
 
     func testInterfaceFiltering() {
+        let en0Interfaces = Interface.interfaces { name, _ in
+            name == "en0"
+        }
+        for interface in en0Interfaces {
+            XCTAssertEqual(interface.name, "en0")
+        }
+
         let loopbackInterfaces = Interface.interfaces { name, _ in
             name == "lo0"
         }
-
         for interface in loopbackInterfaces {
             XCTAssertEqual(interface.name, "lo0")
             XCTAssertTrue(interface.isLoopback)
@@ -73,9 +79,39 @@ final class NetworkKitInterfaceTests: XCTestCase {
     }
 
     func testInterfaceEquality() {
-        let interface1 = Interface(name: "en0", family: .ipv4, hardwareAddress: "00:11:22:33:44:55", address: "192.168.1.1", netmask: "255.255.255.0", running: true, up: true, loopback: false, multicastSupported: true, broadcastAddress: "192.168.1.255")
-        let interface2 = Interface(name: "en0", family: .ipv4, hardwareAddress: "00:11:22:33:44:55", address: "192.168.1.1", netmask: "255.255.255.0", running: true, up: true, loopback: false, multicastSupported: true, broadcastAddress: "192.168.1.255")
-        let interface3 = Interface(name: "en1", family: .ipv4, hardwareAddress: "00:11:22:33:44:55", address: "192.168.1.1", netmask: "255.255.255.0", running: true, up: true, loopback: false, multicastSupported: true, broadcastAddress: "192.168.1.255")
+        let interface1 = Interface(name: "en0",
+                                   family: .ipv4,
+                                   hardwareAddress: "00:11:22:33:44:55",
+                                   address: "192.168.1.1",
+                                   netmask: "255.255.255.0",
+                                   running: true,
+                                   up: true,
+                                   loopback: false,
+                                   multicastSupported: true,
+                                   broadcastAddress: "192.168.1.255",
+                                   gatewayAddress: "192.168.1.1")
+        let interface2 = Interface(name: "en0",
+                                   family: .ipv4,
+                                   hardwareAddress: "00:11:22:33:44:55",
+                                   address: "192.168.1.1",
+                                   netmask: "255.255.255.0",
+                                   running: true,
+                                   up: true,
+                                   loopback: false,
+                                   multicastSupported: true,
+                                   broadcastAddress: "192.168.1.255",
+                                   gatewayAddress: "192.168.1.1")
+        let interface3 = Interface(name: "en1",
+                                   family: .ipv4,
+                                   hardwareAddress: "00:11:22:33:44:55",
+                                   address: "192.168.1.1",
+                                   netmask: "255.255.255.0",
+                                   running: true,
+                                   up: true,
+                                   loopback: false,
+                                   multicastSupported: true,
+                                   broadcastAddress: "192.168.1.255",
+                                   gatewayAddress: "192.168.1.1")
 
         XCTAssertEqual(interface1, interface2)
         XCTAssertNotEqual(interface1, interface3)
@@ -94,7 +130,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: false,
             multicastSupported: true,
-            broadcastAddress: "10.0.0.255"
+            broadcastAddress: "10.0.0.255",
+            gatewayAddress: "10.0.0.2"
         )
 
         XCTAssertEqual(interface.name, "test0")
@@ -127,7 +164,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: false,
             multicastSupported: true,
-            broadcastAddress: "192.168.1.255"
+            broadcastAddress: "192.168.1.255",
+            gatewayAddress: "192.168.1.1"
         )
 
         // Test description (should return name)
@@ -153,7 +191,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: false,
             loopback: false,
             multicastSupported: false,
-            broadcastAddress: nil
+            broadcastAddress: nil,
+            gatewayAddress: nil
         )
 
         let debugDesc = interface.debugDescription
@@ -218,7 +257,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: false,
             multicastSupported: true,
-            broadcastAddress: nil
+            broadcastAddress: nil,
+            gatewayAddress: "192.168.1.1"
         )
 
         if let addressBytes = ipv4Interface.addressBytes {
@@ -237,7 +277,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: true,
             multicastSupported: false,
-            broadcastAddress: nil
+            broadcastAddress: nil,
+            gatewayAddress: nil
         )
 
         if let addressBytes = ipv6Interface.addressBytes {
@@ -258,7 +299,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: false,
             multicastSupported: false,
-            broadcastAddress: nil
+            broadcastAddress: nil,
+            gatewayAddress: nil
         )
 
         XCTAssertNil(noAddressInterface.addressBytes)
@@ -275,7 +317,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             up: true,
             loopback: false,
             multicastSupported: true,
-            broadcastAddress: "192.168.1.255"
+            broadcastAddress: "192.168.1.255",
+            gatewayAddress: "192.168.1.1"
         )
 
         let encoded = try JSONEncoder().encode(interface)
