@@ -14,41 +14,40 @@ func destinationAddress(_ data: ifaddrs) -> UnsafeMutablePointer<sockaddr>! { re
 func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
 
 /**
- * This class represents a network interface in your system. For example, `en0` with a certain IP address.
- * It is a wrapper around the `getifaddrs` system call.
+ * Represents a network interface on the system (e.g., en0 with a specific IP address).
+ * Wraps the `getifaddrs` system call.
  */
 public struct Interface: Sendable {
     public var id = UUID()
 
-    /// `IFF_RUNNING` flag of `ifaddrs->ifa_flags`.
+    /// True if the interface is running (`IFF_RUNNING`).
     public var isRunning: Bool { return running }
 
-    /// `IFF_UP` flag of `ifaddrs->ifa_flags`.
+    /// True if the interface is up (`IFF_UP`).
     public var isUp: Bool { return up }
 
-    /// `IFF_LOOPBACK` flag of `ifaddrs->ifa_flags`.
+    /// True if the interface is a loopback interface (`IFF_LOOPBACK`).
     public var isLoopback: Bool { return loopback }
 
-    /// `IFF_MULTICAST` flag of `ifaddrs->ifa_flags`.
+    /// True if the interface supports multicast (`IFF_MULTICAST`).
     public var supportsMulticast: Bool { return multicastSupported }
 
-    /// Field `ifaddrs->ifa_name`.
+    /// The interface name (e.g., "en0").
     public let name: String
 
-    /// Field `ifaddrs->ifa_addr->sa_family`.
+    /// The address family of the interface (IPv4, IPv6, Ethernet, or other).
     public let family: Family
 
-    /// Hardware address of the interface.
+    /// The hardware (MAC) address of the interface, if available.
     public let hardwareAddress: String?
 
-    /// When family is IPv4 and IPv6, extracted from `ifaddrs->ifa_addr`
-    /// When family is Ethernet, extracted from `ifaddrs->ifa_addr->sdl_data`.
+    /// The primary address of the interface (IPv4, IPv6, or Ethernet).
     public let address: String?
 
-    /// Extracted from `ifaddrs->ifa_netmask`, supports both IPv4 and IPv6.
+    /// The netmask of the interface (IPv4 or IPv6).
     public let netmask: String?
 
-    /// Extracted from `ifaddrs->ifa_dstaddr`. Not applicable for IPv6.
+    /// The broadcast address of the interface (if applicable).
     public let broadcastAddress: String?
 
     fileprivate let running: Bool
@@ -56,7 +55,18 @@ public struct Interface: Sendable {
     fileprivate let loopback: Bool
     fileprivate let multicastSupported: Bool
 
-    /// Initialize a new Interface with the given properties.
+    /// Initializes a new Interface with the given properties.
+    /// - Parameters:
+    ///   - name: The interface name.
+    ///   - family: The address family.
+    ///   - hardwareAddress: The hardware (MAC) address.
+    ///   - address: The primary address.
+    ///   - netmask: The netmask.
+    ///   - running: Whether the interface is running.
+    ///   - up: Whether the interface is up.
+    ///   - loopback: Whether the interface is a loopback interface.
+    ///   - multicastSupported: Whether the interface supports multicast.
+    ///   - broadcastAddress: The broadcast address.
     public init(name: String,
                 family: Family,
                 hardwareAddress: String?,
@@ -97,7 +107,7 @@ public struct Interface: Sendable {
     }
 
     /**
-     * Creates the network format representation of the interface's IP address. Wraps `inet_pton`.
+     * Returns the network format representation of the interface's IP address (using `inet_pton`).
      */
     public var addressBytes: [UInt8]? {
         guard let addr = address else { return nil }
@@ -121,13 +131,12 @@ public struct Interface: Sendable {
 }
 
 public extension Interface {
-    /// Return all interfaces of IPv4 or IPv6.
+    /// Returns all interfaces of IPv4 or IPv6 family.
     static func allInterfaces() -> [Interface] {
         interfaces { $1 == .ipv4 || $1 == .ipv6 }
     }
 
-    /// Return all interfaces that match the given condition.
-    /// ifConfig 文档: https://man7.org/linux/man-pages/man8/ifconfig.8.html#OPTIONS
+    /// Returns all interfaces that match the given condition.
     /// - Parameter condition: A closure that takes a name and a family and returns a boolean.
     /// - Returns: An array of interfaces that match the given condition.
     static func interfaces(_ condition: (String, Family) -> Bool = { _, _ in true }) -> [Interface] {
@@ -149,7 +158,7 @@ public extension Interface {
         return interfaces
     }
 
-    /// Return all interface names that match the given condition.
+    /// Returns all interface names that match the given condition.
     /// - Parameter condition: A closure that takes a name and a family and returns a boolean.
     /// - Returns: An array of interface names that match the given condition.
     static func interfaceNameList(_ condition: (String, Family) -> Bool = { _, _ in true }) -> [String] {
@@ -281,18 +290,18 @@ private extension Interface {
 }
 
 public extension Interface {
-    /// The network interface family (IPv4 or IPv6).
+    /// The network interface family (IPv4, IPv6, Ethernet, or other).
     enum Family: Int, Equatable, Codable, Sendable {
-        /// IPv4.
+        /// IPv4 family.
         case ipv4
-        /// IPv6.
+        /// IPv6 family.
         case ipv6
-        /// Ethernet.
+        /// Ethernet family.
         case ethernet
-        /// Used in case of errors.
+        /// Used in case of errors or unknown family.
         case other
 
-        /// String representation of the address family.
+        /// Returns the string representation of the address family.
         public func toString() -> String {
             switch self {
             case .ipv4: return "IPv4"
@@ -322,14 +331,14 @@ extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
     /// Returns the interface name.
     public var description: String { return name }
 
-    /// Returns a string containing a few properties of the Interface.
+    /// Returns a string containing a summary of the interface's properties.
     public var debugDescription: String {
-        var s = "Interface name:\(name) family:\(family)"
+        var s = "Interface name:\(name) family:\(family.toString())"
         if let ip = address {
             s += " ip:\(ip)"
         }
         s += isUp ? " (up)" : " (down)"
-        s += isRunning ? " (running)" : "(not running)"
+        s += isRunning ? " (running)" : " (not running)"
         return s
     }
 }

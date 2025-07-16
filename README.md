@@ -93,26 +93,10 @@ if let ssid = WiFiSSID.currentWiFiSSID() {
 }
 ```
 
-### Async Array Operations
-
-```swift
-// Concurrent processing
-let numbers = [1, 2, 3, 4, 5]
-let doubled = try await numbers.concurrentMap { $0 * 2 }
-print(doubled) // [2, 4, 6, 8, 10]
-
-// Sequential processing
-let sequential = await numbers.asyncMap { value in
-    try? await Task.sleep(nanoseconds: 1_000_000)
-    return value * 3
-}
-```
-
 ## API Overview
 
 ### Core Modules
 
-- **`Array+`** - Async/concurrent mapping extensions
 - **`DNSResolver`** - Batch DNS resolution with error handling
 - **`DNSServer`** - DNS server representation and parsing
 - **`Endpoint`** - Network endpoint parsing and validation
@@ -150,14 +134,6 @@ swift test
 - **Performance benchmarks** for all major operations
 - **Cross-platform validation** for iOS, macOS, tvOS, watchOS, and visionOS
 
-## Performance
-
-NetworkKit is optimized for performance:
-
-- Async array mapping: ~0.000s for 1,000 elements
-- DNS resolution: ~0.021s for 5 concurrent domains
-- Interface discovery: ~0.001s for system enumeration
-- IP range operations: ~0.000s for containment checks
 
 ## License
 

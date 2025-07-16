@@ -8,6 +8,9 @@
 import Foundation
 
 public extension Array {
+    /// Asynchronously maps each element of the array using the provided transform, sequentially.
+    /// - Parameter transform: An async throwing closure that transforms each element.
+    /// - Returns: An array containing the transformed elements, in order.
     func asyncMap<T>(_ transform: @Sendable @escaping (Element) async throws -> T) async rethrows -> [T] {
         var values = [T]()
 
@@ -18,6 +21,10 @@ public extension Array {
         return values
     }
 
+    /// Concurrently maps each element of the array using the provided async transform.
+    /// - Parameter transform: An async throwing closure that transforms each element.
+    /// - Returns: An array containing the transformed elements, in order.
+    /// - Note: All transformations are performed concurrently. Requires Element and T to conform to Sendable.
     func concurrentMap<T>(_ transform: @Sendable @escaping (Element) async throws -> T) async throws -> [T] where Element: Sendable, T: Sendable {
         let tasks = map { element in
             Task {
