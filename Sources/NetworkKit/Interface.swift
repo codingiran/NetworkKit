@@ -33,13 +33,13 @@ public struct Interface: Equatable, Codable, Sendable {
     /// The interface name (e.g., "en0").
     public let name: String
 
-    /// The address family of the interface (IPv4, IPv6, Ethernet, or other).
+    /// The address family of the interface (IPv4, IPv6, link-layer, or other).
     public let family: Family
 
     /// The hardware (MAC) address of the interface, if available.
     public let hardwareAddress: String?
 
-    /// The primary address of the interface (IPv4, IPv6, or Ethernet).
+    /// The primary address of the interface (IPv4, IPv6, or link-layer).
     public let address: String?
 
     /// The netmask of the interface (IPv4 or IPv6).
@@ -186,7 +186,7 @@ private extension Interface {
         } else if addr.sa_family == InetFamily(AF_INET6) {
             family = .ipv6
         } else if addr.sa_family == InetFamily(AF_LINK) {
-            family = .ethernet
+            family = .link
         } else {
             family = .other
         }
@@ -332,14 +332,14 @@ private extension Interface {
 }
 
 public extension Interface {
-    /// The network interface family (IPv4, IPv6, Ethernet, or other).
+    /// The network interface family (IPv4, IPv6, link-layer, or other).
     enum Family: Int, Equatable, Codable, Sendable {
         /// IPv4 family.
         case ipv4
         /// IPv6 family.
         case ipv6
-        /// Ethernet family.
-        case ethernet
+        /// Link-layer family (MAC addresses, hardware addresses).
+        case link
         /// Used in case of errors or unknown family.
         case other
 
@@ -348,7 +348,7 @@ public extension Interface {
             switch self {
             case .ipv4: return "IPv4"
             case .ipv6: return "IPv6"
-            case .ethernet: return "Ethernet"
+            case .link: return "Link-layer"
             default: return "other"
             }
         }

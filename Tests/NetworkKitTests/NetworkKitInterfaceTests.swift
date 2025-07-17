@@ -149,7 +149,7 @@ final class NetworkKitInterfaceTests: XCTestCase {
     func testInterfaceFamilyToString() {
         XCTAssertEqual(Interface.Family.ipv4.toString(), "IPv4")
         XCTAssertEqual(Interface.Family.ipv6.toString(), "IPv6")
-        XCTAssertEqual(Interface.Family.ethernet.toString(), "Ethernet")
+        XCTAssertEqual(Interface.Family.link.toString(), "Link-layer")
         XCTAssertEqual(Interface.Family.other.toString(), "other")
     }
 
@@ -291,7 +291,7 @@ final class NetworkKitInterfaceTests: XCTestCase {
         // Test interface without address
         let noAddressInterface = Interface(
             name: "test2",
-            family: .ethernet,
+            family: .link,
             hardwareAddress: "00:11:22:33:44:55",
             address: nil,
             netmask: nil,

@@ -1,5 +1,5 @@
 //
-//  NWPath+.swift
+//  Network+.swift
 //  NetworkKit
 //
 //  Created by CodingIran on 2025/7/16.
