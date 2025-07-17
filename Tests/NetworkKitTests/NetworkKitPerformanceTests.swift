@@ -79,14 +79,14 @@ final class NetworkKitPerformanceTests: XCTestCase {
 
     func testInterfaceDiscoveryPerformance() {
         measure {
-            let _ = Interface.allInterfaces()
+            let _ = Ifaddrs.ifaddrsList()
         }
     }
 
     func testInterfaceFilteringPerformance() {
         measure {
-            let _ = Interface.interfaces { _, family in
-                family == .ipv4 || family == .ipv6
+            let _ = Ifaddrs.ifaddrsList { name, _, _, _ in
+                name == "en0"
             }
         }
     }
@@ -240,7 +240,7 @@ final class NetworkKitPerformanceTests: XCTestCase {
     func testMultipleInterfaceQueriesPerformance() {
         measure {
             for _ in 0 ..< 100 {
-                let _ = Interface.allInterfaces()
+                let _ = Ifaddrs.ifaddrsList()
             }
         }
     }

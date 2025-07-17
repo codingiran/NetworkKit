@@ -110,4 +110,7 @@ public extension IPAddress {
     var isIPv6: Bool {
         self is IPv6Address
     }
+
+    /// Returns a string representation of the address.
+    var stringPresentation: String { "\(self)" }
 }

@@ -8,7 +8,7 @@ final class NetworkKitTests: XCTestCase, @unchecked Sendable {
     func testNetworkKitVersion() {
         // Test that the version constant is accessible and not empty
         XCTAssertFalse(NetworkKit.version.isEmpty)
-        XCTAssertEqual(NetworkKit.version, "0.1.0")
+        XCTAssertEqual(NetworkKit.version, "0.2.1")
     }
 
     func testNetworkKitImports() {
@@ -17,7 +17,7 @@ final class NetworkKitTests: XCTestCase, @unchecked Sendable {
         XCTAssertNotNil(DNSResolver.self)
         XCTAssertNotNil(DNSServer.self)
         XCTAssertNotNil(Endpoint.self)
-        XCTAssertNotNil(Interface.self)
+        XCTAssertNotNil(Ifaddrs.self)
         XCTAssertNotNil(IPAddressRange.self)
         XCTAssertNotNil(WiFiSSID.self)
     }
