@@ -83,14 +83,6 @@ final class NetworkKitPerformanceTests: XCTestCase {
         }
     }
 
-    func testInterfaceFilteringPerformance() {
-        measure {
-            let _ = Ifaddrs.ifaddrsList { name, _, _, _ in
-                name == "en0"
-            }
-        }
-    }
-
     // MARK: - IP Address Range Performance Tests
 
     func testIPAddressRangeContainsPerformance() {

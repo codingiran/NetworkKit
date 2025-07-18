@@ -19,6 +19,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
         }
     }
 
+    #if os(macOS) && canImport(SystemConfiguration)
+
     func testListAllHardwareInterfaces() {
         let scInterfaces = Interface.listAllHardwareInterfaces()
         // Allow empty, but type and properties should be accessible
@@ -30,6 +32,8 @@ final class NetworkKitInterfaceTests: XCTestCase {
             XCTAssertFalse(sc.description.isEmpty)
         }
     }
+
+    #endif
 
     func testIfaddrsList() {
         let ifaddrsList = Ifaddrs.ifaddrsList()
@@ -47,38 +51,21 @@ final class NetworkKitInterfaceTests: XCTestCase {
         }
     }
 
-    func testIfaddrsCondition() {
-        let ifaddrsList = Ifaddrs.ifaddrsList { name, isUp, isRunning, isLoopback in
-            name == "en0" && isUp && isRunning && !isLoopback
-        }
-        XCTAssertFalse(ifaddrsList.isEmpty, "Should find at least one ifaddrs entry")
-        for ifaddr in ifaddrsList {
-            XCTAssertEqual(ifaddr.name, "en0")
-            XCTAssertTrue(ifaddr.isUp)
-            XCTAssertTrue(ifaddr.isRunning)
-            XCTAssertFalse(ifaddr.isLoopback)
-        }
-    }
-
     func testAllInterfacesPerformance() {
         measure {
             _ = Interface.allInterfaces()
         }
     }
 
-    func testAllInterfacesConditionPerformance() {
-        measure {
-            _ = Interface.allInterfaces { name, _, _, _ in
-                name == "en0"
-            }
-        }
-    }
+    #if os(macOS) && canImport(SystemConfiguration)
 
     func testListAllHardwareInterfacesPerformance() {
         measure {
             _ = Interface.listAllHardwareInterfaces()
         }
     }
+
+    #endif
 
     func testIfaddrsListPerformance() {
         measure {

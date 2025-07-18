@@ -8,7 +8,7 @@
 import Foundation
 import Network
 
-public struct Interface: Sendable, Equatable, Codable {
+public struct Interface: Sendable {
     /// The name of the interface.
     public let name: String
 
@@ -17,12 +17,6 @@ public struct Interface: Sendable, Equatable, Codable {
 
     /// The system interface index associated with the interface.
     public let index: UInt32
-
-    /// The address family of the interface
-    public let ethernetAddress: String?
-
-    /// The hardware (MAC) address of the interface
-    public let hardwareAddress: String?
 
     /// The IPv4 addresses of the interface
     public let ipv4Addresses: [Network.IPv4Address]
@@ -35,12 +29,6 @@ public struct Interface: Sendable, Equatable, Codable {
 
     /// The primary IPv6 address of the interface
     public var primaryIPv6Address: Network.IPv6Address? { ipv6Addresses.first }
-
-    /// The IPv4 gateway address of the interface
-    public let ipv4Gateway: Network.IPv4Address?
-
-    /// The IPv6 gateway address of the interface
-    public let ipv6Gateway: Network.IPv6Address?
 
     /// The IPv4 netmask of the interface
     public let ipv4Netmask: Network.IPv4Address?
@@ -62,6 +50,54 @@ public struct Interface: Sendable, Equatable, Codable {
 
     /// True if the interface supports multicast
     public let supportsMulticast: Bool
+
+    /// The address family of the interface
+    public let ethernetAddress: String?
+
+    /// The IPv4 gateway address of the interface
+    public var ipv4Gateway: Network.IPv4Address? {
+        for ifaddr in ipv4Ifaddrs {
+            if let gatewayAddress = ifaddr.gatewayAddress {
+                return Network.IPv4Address(gatewayAddress)
+            }
+        }
+        return nil
+    }
+
+    /// The IPv6 gateway address of the interface
+    public var ipv6Gateway: Network.IPv6Address? {
+        for ifaddr in ipv6Ifaddrs {
+            if let gatewayAddress = ifaddr.gatewayAddress {
+                return Network.IPv6Address(gatewayAddress)
+            }
+        }
+        return nil
+    }
+
+    /// The hardware (MAC) address of the interface
+    public var hardwareAddress: String? {
+        #if os(macOS) && canImport(SystemConfiguration)
+            // Prefer real hardware address from SystemConfiguration
+            if let address = scInterfaces.first(where: { $0.bsdName == name })?.hardwareAddress {
+                return address
+            }
+        #endif
+        // Fallback to hardware address from IOKit
+        return linkLayerIfaddrs.first?.hardwareAddress
+    }
+
+    /// The link layer ifaddrs of the interface
+    private let linkLayerIfaddrs: [Ifaddrs]
+
+    /// The IPv4 ifaddrs of the interface
+    private let ipv4Ifaddrs: [Ifaddrs]
+
+    /// The IPv6 ifaddrs of the interface
+    private let ipv6Ifaddrs: [Ifaddrs]
+
+    /// The SystemConfiguration interfaces of the interface
+    @available(macOS 10.15, *)
+    private let scInterfaces: [SCInterface]
 }
 
 public extension Interface {
@@ -69,8 +105,8 @@ public extension Interface {
     ///
     /// - Returns: An array of `Interface` objects representing all interfaces on the system.
     ///            Returns an empty array if no interfaces are found.
-    static func allInterfaces(_ condition: @escaping Ifaddrs.Condition = { _, _, _, _ in true }) -> [Interface] {
-        let ifaddrsList = Ifaddrs.ifaddrsList(condition)
+    static func allInterfaces() -> [Interface] {
+        let ifaddrsList = Ifaddrs.ifaddrsList()
 
         guard !ifaddrsList.isEmpty else { return [] }
 
@@ -81,7 +117,8 @@ public extension Interface {
         #if os(macOS) && canImport(SystemConfiguration)
             let scInterfaces = listAllHardwareInterfaces()
             let scTypeMapping = Dictionary(uniqueKeysWithValues: scInterfaces.map { ($0.bsdName, $0.type) })
-            let scHardwareMapping = Dictionary(uniqueKeysWithValues: scInterfaces.map { ($0.bsdName, $0.hardwareAddress) })
+        #else
+            let scInterfaces: [SCInterface] = []
         #endif
 
         // Convert each group to a single Interface
@@ -105,68 +142,51 @@ public extension Interface {
             let ipv4Ifaddrs = ifaddrs.filter { $0.family == .inet }
             let ipv6Ifaddrs = ifaddrs.filter { $0.family == .inet6 }
 
-            // Get ethernet address (network-used address) from AF_LINK
-            let ethernetAddress = linkLayerIfaddrs.first?.address
-
-            // Get hardware address (real physical address)
-            let hardwareAddress: String? = {
-                #if os(macOS) && canImport(SystemConfiguration)
-                    // Prefer real hardware address from SystemConfiguration
-                    if let scHardware = scHardwareMapping[name] {
-                        return scHardware
-                    }
-                #endif
-                // Fallback to hardware address from IOKit
-                return linkLayerIfaddrs.first?.hardwareAddress
-            }()
-
             // Extract IPv4 address info
             let ipv4Addresses: [Network.IPv4Address] = ipv4Ifaddrs.compactMap { ifaddr in
                 guard let addrString = ifaddr.address else { return nil }
                 return Network.IPv4Address(addrString)
             }
 
-            let ipv4Gateway: Network.IPv4Address? = ipv4Ifaddrs.first { $0.gatewayAddress != nil }?.gatewayAddress
-                .flatMap { Network.IPv4Address($0) }
-
+            /// Extract IPv4 netmask info
             let ipv4Netmask: Network.IPv4Address? = ipv4Ifaddrs.first { $0.netmask != nil }?.netmask
                 .flatMap { Network.IPv4Address($0) }
-
+            /// Extract IPv4 broadcast address info
             let ipv4Broadcast: Network.IPv4Address? = ipv4Ifaddrs.first { $0.broadcastAddress != nil }?.broadcastAddress
                 .flatMap { Network.IPv4Address($0) }
-
             // Extract IPv6 address info
             let ipv6Addresses: [Network.IPv6Address] = ipv6Ifaddrs.compactMap { ifaddr in
                 guard let addrString = ifaddr.address else { return nil }
                 return Network.IPv6Address(addrString)
             }
 
-            let ipv6Gateway: Network.IPv6Address? = ipv6Ifaddrs.first { $0.gatewayAddress != nil }?.gatewayAddress
-                .flatMap { Network.IPv6Address($0) }
-
+            /// Extract IPv6 netmask info
             let ipv6Netmask: Network.IPv6Address? = ipv6Ifaddrs.first { $0.netmask != nil }?.netmask
                 .flatMap { Network.IPv6Address($0) }
-
+            /// Extract IPv6 broadcast address info
             let ipv6Broadcast: Network.IPv6Address? = ipv6Ifaddrs.first { $0.broadcastAddress != nil }?.broadcastAddress
                 .flatMap { Network.IPv6Address($0) }
+            // Get ethernet address (network-used address) from AF_LINK
+            let ethernetAddress = linkLayerIfaddrs.first?.address
 
             return Interface(
                 name: name,
                 type: type,
                 index: index,
-                ethernetAddress: ethernetAddress,
-                hardwareAddress: hardwareAddress,
                 ipv4Addresses: ipv4Addresses,
                 ipv6Addresses: ipv6Addresses,
-                ipv4Gateway: ipv4Gateway,
-                ipv6Gateway: ipv6Gateway,
                 ipv4Netmask: ipv4Netmask,
                 ipv6Netmask: ipv6Netmask,
                 ipv4Broadcast: ipv4Broadcast,
                 ipv6Broadcast: ipv6Broadcast,
                 isUp: isUp,
                 isRunning: isRunning,
-                supportsMulticast: supportsMulticast
+                supportsMulticast: supportsMulticast,
+                ethernetAddress: ethernetAddress,
+                linkLayerIfaddrs: linkLayerIfaddrs,
+                ipv4Ifaddrs: ipv4Ifaddrs,
+                ipv6Ifaddrs: ipv6Ifaddrs,
+                scInterfaces: scInterfaces
             )
         }
         .sorted { $0.index < $1.index } // Sort by interface index
@@ -266,22 +286,26 @@ public extension Interface {
         /// A virtual or otherwise unknown interface type
         case other
 
-        private static var _kSCNetworkInterfaceTypeBridge: CFString { "Bridge" as CFString }
+        #if os(macOS) && canImport(SystemConfiguration)
 
-        init(scInterfaceType: CFString) {
-            switch scInterfaceType {
-            case kSCNetworkInterfaceTypeEthernet:
-                self = .wiredEthernet
-            case kSCNetworkInterfaceTypeIEEE80211, kSCNetworkInterfaceTypeWWAN:
-                self = .wifi
-            case kSCNetworkInterfaceTypeBluetooth:
-                self = .bluetooth
-            case InterfaceType._kSCNetworkInterfaceTypeBridge:
-                self = .bridge
-            default:
-                self = .other
+            private static var _kSCNetworkInterfaceTypeBridge: CFString { "Bridge" as CFString }
+
+            init(scInterfaceType: CFString) {
+                switch scInterfaceType {
+                case kSCNetworkInterfaceTypeEthernet:
+                    self = .wiredEthernet
+                case kSCNetworkInterfaceTypeIEEE80211, kSCNetworkInterfaceTypeWWAN:
+                    self = .wifi
+                case kSCNetworkInterfaceTypeBluetooth:
+                    self = .bluetooth
+                case InterfaceType._kSCNetworkInterfaceTypeBridge:
+                    self = .bridge
+                default:
+                    self = .other
+                }
             }
-        }
+
+        #endif
 
         public var description: String {
             switch self {
@@ -297,22 +321,23 @@ public extension Interface {
     }
 }
 
+@available(macOS 10.15, *)
+public extension Interface {
+    struct SCInterface: Sendable, Codable, Equatable, CustomStringConvertible {
+        public let bsdName: String
+        public let localizedDisplayName: String
+        public let hardwareAddress: String
+        public let type: InterfaceType
+
+        public var description: String {
+            "Interface(bsdName: \(bsdName), localizedDisplayName: \(localizedDisplayName), hardwareAddress: \(hardwareAddress), type: \(type.description))"
+        }
+    }
+}
+
 #if os(macOS) && canImport(SystemConfiguration)
 
     import SystemConfiguration
-
-    public extension Interface {
-        struct SCInterface: Sendable, Codable, Equatable, CustomStringConvertible {
-            public let bsdName: String
-            public let localizedDisplayName: String
-            public let hardwareAddress: String
-            public let type: InterfaceType
-
-            public var description: String {
-                "Interface(bsdName: \(bsdName), localizedDisplayName: \(localizedDisplayName), hardwareAddress: \(hardwareAddress), type: \(type.description))"
-            }
-        }
-    }
 
     public extension Interface {
         static func listAllHardwareInterfaces() -> [SCInterface] {
@@ -337,7 +362,11 @@ public extension Interface {
 
 #endif
 
-extension Interface: CustomDebugStringConvertible {
+extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
+    public var description: String {
+        "Interface(name: \(name), type: \(type), index: \(index)"
+    }
+
     public var debugDescription: String {
         var components: [String] = []
 

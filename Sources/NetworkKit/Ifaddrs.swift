@@ -5,14 +5,13 @@
 //  Created by CodingIran on 2024/10/24.
 //
 
-import Darwin
 import Foundation
 
 /**
  * Represents a network interface on the system (e.g., en0 with a specific IP address).
  * Wraps the `getifaddrs` system call.
  */
-public struct Ifaddrs: Equatable, Codable, Sendable {
+public struct Ifaddrs: Sendable {
     /// The interface name (e.g., "en0").
     public let name: String
 
@@ -21,9 +20,6 @@ public struct Ifaddrs: Equatable, Codable, Sendable {
 
     /// The address family of the interface (IPv4, IPv6, link-layer, or other).
     public let family: Family
-
-    /// The hardware (MAC) address of the interface, if available.
-    public let hardwareAddress: String?
 
     /// The primary address of the interface (IPv4, IPv6, or link-layer).
     public let address: String?
@@ -46,72 +42,26 @@ public struct Ifaddrs: Equatable, Codable, Sendable {
     /// The broadcast address of the interface (if applicable).
     public let broadcastAddress: String?
 
+    /// The metadata associated with the interface.
+    private var metaData: MetaData?
+
     /// The gateway address of the interface (if applicable).
-    public let gatewayAddress: String?
-
-    /// Initializes a new Ifaddrs with the given properties.
-    /// - Parameters:
-    ///   - name: The interface name.
-    ///   - index: The system interface index.
-    ///   - family: The address family.
-    ///   - hardwareAddress: The hardware (MAC) address.
-    ///   - address: The primary address.
-    ///   - netmask: The netmask.
-    ///   - isRunning: Whether the interface is running.
-    ///   - isUp: Whether the interface is up.
-    ///   - isLoopback: Whether the interface is a loopback interface.
-    ///   - supportsMulticast: Whether the interface supports multicast.
-    ///   - broadcastAddress: The broadcast address.
-    ///   - gatewayAddress: The gateway address.
-    public init(name: String,
-                index: UInt32,
-                family: Family,
-                hardwareAddress: String?,
-                address: String?,
-                netmask: String?,
-                isRunning: Bool,
-                isUp: Bool,
-                isLoopback: Bool,
-                supportsMulticast: Bool,
-                broadcastAddress: String?,
-                gatewayAddress: String?)
-    {
-        self.name = name
-        self.index = index
-        self.family = family
-        self.hardwareAddress = hardwareAddress
-        self.address = address
-        self.netmask = netmask
-        self.isRunning = isRunning
-        self.isUp = isUp
-        self.isLoopback = isLoopback
-        self.supportsMulticast = supportsMulticast
-        self.broadcastAddress = broadcastAddress
-        self.gatewayAddress = gatewayAddress
+    public var gatewayAddress: String? {
+        guard let metaData,
+              let address = Ifaddrs.extractGatewayAddress(name, metaData.ifaddrs.ifa_addr.pointee.sa_family)
+        else { return nil }
+        return address
     }
 
-    private init(name: String, isUp: Bool, isRunning: Bool, isLoopback: Bool, flags: Flags, ifaddrs: ifaddrs) {
-        let index = if_nametoindex(ifaddrs.ifa_name)
-        let family = Ifaddrs.extractFamily(ifaddrs)
-        let supportsMulticast = (flags & IFF_MULTICAST) == IFF_MULTICAST
-        let broadcastValid: Bool = ((flags & IFF_BROADCAST) == IFF_BROADCAST)
-        self.init(name: name,
-                  index: index,
-                  family: family,
-                  hardwareAddress: Ifaddrs.extractHardwareAddress(ifaddrs),
-                  address: Ifaddrs.extractAddress(ifaddrs.ifa_addr),
-                  netmask: Ifaddrs.extractAddress(ifaddrs.ifa_netmask),
-                  isRunning: isRunning,
-                  isUp: isUp,
-                  isLoopback: isLoopback,
-                  supportsMulticast: supportsMulticast,
-                  broadcastAddress: (broadcastValid && destinationAddress(ifaddrs) != nil) ? Ifaddrs.extractAddress(destinationAddress(ifaddrs)) : nil,
-                  gatewayAddress: Ifaddrs.extractGatewayAddress(name, ifaddrs.ifa_addr.pointee.sa_family))
+    /// The hardware (MAC) address of the interface, if available.
+    public var hardwareAddress: String? {
+        guard let metaData,
+              let address = Ifaddrs.extractHardwareAddress(metaData.ifaddrs)
+        else { return nil }
+        return address
     }
 
-    /**
-     * Returns the network format representation of the interface's IP address (using `inet_pton`).
-     */
+    /// Returns the network format representation of the interface's IP address (using `inet_pton`).
     public var addressBytes: [UInt8]? {
         guard let addr = address else { return nil }
 
@@ -134,38 +84,40 @@ public struct Ifaddrs: Equatable, Codable, Sendable {
 }
 
 public extension Ifaddrs {
-    /// A closure that takes a name, isUp, isRunning, and isLoopback and returns a boolean.
-    typealias Condition = @Sendable (_ name: String, _ isUp: Bool, _ isRunning: Bool, _ isLoopback: Bool) -> Bool
+    /// Returns all interfaces.
+    /// - Returns: An array of interfaces.
+    static func ifaddrsList() -> [Ifaddrs] {
+        listAllMetaDatas().map { Ifaddrs(ifaddrs: $0) }
+    }
+}
 
-    /// Returns all interfaces that match the given condition.
-    /// - Parameter condition: A closure that takes a name, family, isUp, isRunning, and isLoopback and returns a boolean.
-    /// - Returns: An array of interfaces that match the given condition.
-    static func ifaddrsList(_ condition: @escaping Condition = { _, _, _, _ in true }) -> [Ifaddrs] {
-        var interfaces: [Ifaddrs] = []
-        var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
-        if getifaddrs(&ifaddrsPtr) == 0 {
-            var ifaddrPtr = ifaddrsPtr
-            while ifaddrPtr != nil {
-                let ifaddrs = ifaddrPtr!.pointee
-                let name = String(cString: ifaddrs.ifa_name)
-                let flags = Flags(ifaddrs.ifa_flags)
-                let isRunning = (flags & IFF_RUNNING) == IFF_RUNNING
-                let isUp = (flags & IFF_UP) == IFF_UP
-                let isLoopback = (flags & IFF_LOOPBACK) == IFF_LOOPBACK
-                if condition(name, isUp, isRunning, isLoopback) {
-                    interfaces.append(Ifaddrs(name: name, isUp: isUp, isRunning: isRunning, isLoopback: isLoopback, flags: flags, ifaddrs: ifaddrs))
-                }
-                ifaddrPtr = ifaddrs.ifa_next
+public extension Ifaddrs {
+    /// The network interface family (IPv4, IPv6, link-layer, or other).
+    enum Family: Int, Equatable, Codable, Sendable, CustomStringConvertible {
+        /// IPv4 family (AF_INET).
+        case inet
+        /// IPv6 family (AF_INET6).
+        case inet6
+        /// Link-layer family (AF_LINK) - MAC addresses, hardware addresses.
+        case link
+        /// Used in case of errors or unknown family.
+        case other
+
+        /// Returns the string representation of the address family.
+        public var description: String {
+            switch self {
+            case .inet: return "AF_INET"
+            case .inet6: return "AF_INET6"
+            case .link: return "AF_LINK"
+            default: return "other"
             }
-            freeifaddrs(ifaddrsPtr)
         }
-        return interfaces
     }
 }
 
 extension Ifaddrs: CustomStringConvertible, CustomDebugStringConvertible {
     /// Returns the interface name.
-    public var description: String { return name }
+    public var description: String { "Interface name:\(name) family:\(family) index:\(index)" }
 
     /// Returns a string containing a summary of the interface's properties.
     public var debugDescription: String {
@@ -193,14 +145,64 @@ extension Ifaddrs: CustomStringConvertible, CustomDebugStringConvertible {
     }
 }
 
+private extension Ifaddrs {
+    struct MetaData: @unchecked Sendable {
+        let ifaddrs: ifaddrs
+    }
+
+    static func listAllMetaDatas() -> [ifaddrs] {
+        var metaDatas: [ifaddrs] = []
+        var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
+        if getifaddrs(&ifaddrsPtr) == 0 {
+            var ifaddrPtr = ifaddrsPtr
+            while ifaddrPtr != nil {
+                let ifaddrs = ifaddrPtr!.pointee
+                metaDatas.append(ifaddrs)
+                ifaddrPtr = ifaddrs.ifa_next
+            }
+            freeifaddrs(ifaddrsPtr)
+        }
+        return metaDatas
+    }
+
+    init(ifaddrs: ifaddrs) {
+        let name = String(cString: ifaddrs.ifa_name)
+        let index = if_nametoindex(ifaddrs.ifa_name)
+        let family = Self.extractFamily(ifaddrs)
+        let address = Self.extractAddress(ifaddrs.ifa_addr)
+        let netmask = Self.extractAddress(ifaddrs.ifa_netmask)
+        let flags = Flags(ifaddrs.ifa_flags)
+        let isUp = (flags & IFF_UP) == IFF_UP
+        let isRunning = (flags & IFF_RUNNING) == IFF_RUNNING
+        let isLoopback = (flags & IFF_LOOPBACK) == IFF_LOOPBACK
+        let supportsMulticast = (flags & IFF_MULTICAST) == IFF_MULTICAST
+        let broadcastAddress: String? = {
+            let broadcastValid: Bool = ((flags & IFF_BROADCAST) == IFF_BROADCAST)
+            guard broadcastValid, let address = destinationAddress(ifaddrs) else { return nil }
+            return Ifaddrs.extractAddress(address)
+        }()
+        self.init(name: name,
+                  index: index,
+                  family: family,
+                  address: address,
+                  netmask: netmask,
+                  isRunning: isRunning,
+                  isUp: isUp,
+                  isLoopback: isLoopback,
+                  supportsMulticast: supportsMulticast,
+                  broadcastAddress: broadcastAddress,
+                  metaData: MetaData(ifaddrs: ifaddrs))
+    }
+}
+
 typealias InetFamily = UInt8
 typealias Flags = Int32
 func destinationAddress(_ data: ifaddrs) -> UnsafeMutablePointer<sockaddr>! { return data.ifa_dstaddr }
 func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
 
 private extension Ifaddrs {
-    static func extractFamily(_ data: ifaddrs) -> Family {
-        var family: Family = .other
+    static func extractFamily(_ data: ifaddrs) -> Ifaddrs.Family {
+        var family: Ifaddrs.Family = .other
         let addr = data.ifa_addr.pointee
         if addr.sa_family == InetFamily(AF_INET) {
             family = .inet
@@ -273,7 +275,7 @@ private extension Ifaddrs {
     }
 
     static func extractHardwareAddress(_ data: ifaddrs) -> String? {
-        #if os(macOS)
+        #if canImport(IOKit)
             guard let matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, String(cString: data.ifa_name)) else {
                 return nil
             }
@@ -346,30 +348,6 @@ private extension Ifaddrs {
         }
 
         return nil
-    }
-}
-
-public extension Ifaddrs {
-    /// The network interface family (IPv4, IPv6, link-layer, or other).
-    enum Family: Int, Equatable, Codable, Sendable, CustomStringConvertible {
-        /// IPv4 family (AF_INET).
-        case inet
-        /// IPv6 family (AF_INET6).
-        case inet6
-        /// Link-layer family (AF_LINK) - MAC addresses, hardware addresses.
-        case link
-        /// Used in case of errors or unknown family.
-        case other
-
-        /// Returns the string representation of the address family.
-        public var description: String {
-            switch self {
-            case .inet: return "AF_INET"
-            case .inet6: return "AF_INET6"
-            case .link: return "AF_LINK"
-            default: return "other"
-            }
-        }
     }
 }
 
