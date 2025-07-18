@@ -362,9 +362,27 @@ public extension Interface {
 
 #endif
 
+extension Interface: Equatable {
+    public static func == (lhs: Interface, rhs: Interface) -> Bool {
+        lhs.name == rhs.name &&
+            lhs.type == rhs.type &&
+            lhs.index == rhs.index &&
+            lhs.ipv4Addresses == rhs.ipv4Addresses &&
+            lhs.ipv6Addresses == rhs.ipv6Addresses &&
+            lhs.ipv4Netmask == rhs.ipv4Netmask &&
+            lhs.ipv6Netmask == rhs.ipv6Netmask &&
+            lhs.ipv4Broadcast == rhs.ipv4Broadcast &&
+            lhs.ipv6Broadcast == rhs.ipv6Broadcast &&
+            lhs.isUp == rhs.isUp &&
+            lhs.isRunning == rhs.isRunning &&
+            lhs.supportsMulticast == rhs.supportsMulticast &&
+            lhs.ethernetAddress == rhs.ethernetAddress
+    }
+}
+
 extension Interface: CustomStringConvertible, CustomDebugStringConvertible {
     public var description: String {
-        "Interface(name: \(name), type: \(type), index: \(index)"
+        "Interface(name: \(name), type: \(type), index: \(index), isUp: \(isUp), isRunning: \(isRunning))"
     }
 
     public var debugDescription: String {
