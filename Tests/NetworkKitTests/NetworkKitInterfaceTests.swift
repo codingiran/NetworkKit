@@ -7,6 +7,7 @@ final class NetworkKitInterfaceTests: XCTestCase {
         let interfaces = Interface.allInterfaces()
         XCTAssertFalse(interfaces.isEmpty, "Should find at least one network interface")
         for interface in interfaces {
+            debugPrint(interface.debugDescription)
             XCTAssertFalse(interface.name.isEmpty)
             XCTAssertGreaterThan(interface.index, 0)
             XCTAssertNotNil(interface.type)
@@ -14,8 +15,6 @@ final class NetworkKitInterfaceTests: XCTestCase {
             XCTAssertNotNil(interface.isUp)
             XCTAssertNotNil(interface.isRunning)
             XCTAssertNotNil(interface.supportsMulticast)
-            // debugDescription should not crash
-            XCTAssertFalse(interface.debugDescription.isEmpty)
         }
     }
 

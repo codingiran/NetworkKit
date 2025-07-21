@@ -78,7 +78,7 @@ public struct Interface: Sendable {
     public var hardwareAddress: String? {
         #if os(macOS) && canImport(SystemConfiguration)
             // Prefer real hardware address from SystemConfiguration
-            if let address = scInterfaces.first(where: { $0.bsdName == name })?.hardwareAddress {
+            if let address = scInterface?.hardwareAddress {
                 return address
             }
         #endif
@@ -97,7 +97,7 @@ public struct Interface: Sendable {
 
     /// The SystemConfiguration interfaces of the interface
     @available(macOS 10.15, *)
-    private let scInterfaces: [SCInterface]
+    private let scInterface: SCInterface?
 }
 
 public extension Interface {
@@ -169,6 +169,9 @@ public extension Interface {
             // Get ethernet address (network-used address) from AF_LINK
             let ethernetAddress = linkLayerIfaddrs.first?.address
 
+            // Get SystemConfiguration interface
+            let scInterface = scInterfaces.first { $0.bsdName == name }
+
             return Interface(
                 name: name,
                 type: type,
@@ -186,7 +189,7 @@ public extension Interface {
                 linkLayerIfaddrs: linkLayerIfaddrs,
                 ipv4Ifaddrs: ipv4Ifaddrs,
                 ipv6Ifaddrs: ipv6Ifaddrs,
-                scInterfaces: scInterfaces
+                scInterface: scInterface
             )
         }
         .sorted { $0.index < $1.index } // Sort by interface index

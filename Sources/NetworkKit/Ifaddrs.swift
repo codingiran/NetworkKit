@@ -42,22 +42,15 @@ public struct Ifaddrs: Sendable {
     /// The broadcast address of the interface (if applicable).
     public let broadcastAddress: String?
 
-    /// The metadata associated with the interface.
-    private var metaData: MetaData?
-
     /// The gateway address of the interface (if applicable).
     public var gatewayAddress: String? {
-        guard let metaData,
-              let address = Ifaddrs.extractGatewayAddress(name, metaData.ifaddrs.ifa_addr.pointee.sa_family)
-        else { return nil }
+        let address = Ifaddrs.extractGatewayAddress(name, family.saFamily)
         return address
     }
 
     /// The hardware (MAC) address of the interface, if available.
     public var hardwareAddress: String? {
-        guard let metaData,
-              let address = Ifaddrs.extractHardwareAddress(metaData.ifaddrs)
-        else { return nil }
+        let address = Ifaddrs.extractHardwareAddress(name)
         return address
     }
 
@@ -87,7 +80,18 @@ public extension Ifaddrs {
     /// Returns all interfaces.
     /// - Returns: An array of interfaces.
     static func ifaddrsList() -> [Ifaddrs] {
-        listAllMetaDatas().map { Ifaddrs(ifaddrs: $0) }
+        var list = [Ifaddrs]()
+        var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
+        if getifaddrs(&ifaddrsPtr) == 0 {
+            var ifaddrPtr = ifaddrsPtr
+            while ifaddrPtr != nil {
+                let ifaddrs = ifaddrPtr!.pointee
+                list.append(Ifaddrs(ifaddrs: ifaddrs))
+                ifaddrPtr = ifaddrs.ifa_next
+            }
+            freeifaddrs(ifaddrsPtr)
+        }
+        return list
     }
 }
 
@@ -110,6 +114,15 @@ public extension Ifaddrs {
             case .inet6: return "AF_INET6"
             case .link: return "AF_LINK"
             default: return "other"
+            }
+        }
+
+        var saFamily: sa_family_t {
+            switch self {
+            case .inet: return sa_family_t(AF_INET)
+            case .inet6: return sa_family_t(AF_INET6)
+            case .link: return sa_family_t(AF_LINK)
+            default: return sa_family_t(AF_UNSPEC)
             }
         }
     }
@@ -146,25 +159,6 @@ extension Ifaddrs: CustomStringConvertible, CustomDebugStringConvertible {
 }
 
 private extension Ifaddrs {
-    struct MetaData: @unchecked Sendable {
-        let ifaddrs: ifaddrs
-    }
-
-    static func listAllMetaDatas() -> [ifaddrs] {
-        var metaDatas: [ifaddrs] = []
-        var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
-        if getifaddrs(&ifaddrsPtr) == 0 {
-            var ifaddrPtr = ifaddrsPtr
-            while ifaddrPtr != nil {
-                let ifaddrs = ifaddrPtr!.pointee
-                metaDatas.append(ifaddrs)
-                ifaddrPtr = ifaddrs.ifa_next
-            }
-            freeifaddrs(ifaddrsPtr)
-        }
-        return metaDatas
-    }
-
     init(ifaddrs: ifaddrs) {
         let name = String(cString: ifaddrs.ifa_name)
         let index = if_nametoindex(ifaddrs.ifa_name)
@@ -190,27 +184,27 @@ private extension Ifaddrs {
                   isUp: isUp,
                   isLoopback: isLoopback,
                   supportsMulticast: supportsMulticast,
-                  broadcastAddress: broadcastAddress,
-                  metaData: MetaData(ifaddrs: ifaddrs))
+                  broadcastAddress: broadcastAddress)
     }
 }
 
-typealias InetFamily = UInt8
-typealias Flags = Int32
-func destinationAddress(_ data: ifaddrs) -> UnsafeMutablePointer<sockaddr>! { return data.ifa_dstaddr }
-func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
+private typealias InetFamily = UInt8
+private typealias Flags = Int32
+private func destinationAddress(_ data: ifaddrs) -> UnsafeMutablePointer<sockaddr>! { return data.ifa_dstaddr }
+private func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
 
 private extension Ifaddrs {
     static func extractFamily(_ data: ifaddrs) -> Ifaddrs.Family {
         var family: Ifaddrs.Family
-        let addr = data.ifa_addr.pointee
-        if addr.sa_family == InetFamily(AF_INET) {
+        let addrFamily = data.ifa_addr.pointee.sa_family
+        switch addrFamily {
+        case InetFamily(AF_INET):
             family = .inet
-        } else if addr.sa_family == InetFamily(AF_INET6) {
+        case InetFamily(AF_INET6):
             family = .inet6
-        } else if addr.sa_family == InetFamily(AF_LINK) {
+        case InetFamily(AF_LINK):
             family = .link
-        } else {
+        default:
             family = .other
         }
         return family
@@ -274,7 +268,7 @@ private extension Ifaddrs {
         }
     }
 
-    static func extractHardwareAddress(_ data: ifaddrs) -> String? {
+    static func extractHardwareAddress(_ ifName: String) -> String? {
         #if canImport(IOKit)
             let mainPort: mach_port_t
             if #available(macOS 12.0, *) {
@@ -282,7 +276,7 @@ private extension Ifaddrs {
             } else {
                 mainPort = kIOMasterPortDefault
             }
-            guard let matchingDict = IOBSDNameMatching(mainPort, 0, String(cString: data.ifa_name)) else {
+            guard let matchingDict = IOBSDNameMatching(mainPort, 0, ifName) else {
                 return nil
             }
             var iterator: io_iterator_t = 0
@@ -346,7 +340,9 @@ private extension Ifaddrs {
             var ifname = [CChar](repeating: 0, count: Int(IFNAMSIZ + 1))
             if_indextoname(UInt32(rtm.rtm_index), &ifname)
 
-            if String(utf8String: ifname) == ifa_name, let addr = getGateFromRTM(rtm, next, family) {
+            if String(utf8String: ifname) == ifa_name,
+               let addr = getGateFromRTM(rtm, next, family)
+            {
                 return addr
             }
 
