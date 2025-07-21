@@ -202,7 +202,7 @@ func socketLength4(_ addr: sockaddr) -> UInt32 { return socklen_t(addr.sa_len) }
 
 private extension Ifaddrs {
     static func extractFamily(_ data: ifaddrs) -> Ifaddrs.Family {
-        var family: Ifaddrs.Family = .other
+        var family: Ifaddrs.Family
         let addr = data.ifa_addr.pointee
         if addr.sa_family == InetFamily(AF_INET) {
             family = .inet
@@ -276,14 +276,20 @@ private extension Ifaddrs {
 
     static func extractHardwareAddress(_ data: ifaddrs) -> String? {
         #if canImport(IOKit)
-            guard let matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, String(cString: data.ifa_name)) else {
+            let mainPort: mach_port_t
+            if #available(macOS 12.0, *) {
+                mainPort = kIOMainPortDefault
+            } else {
+                mainPort = kIOMasterPortDefault
+            }
+            guard let matchingDict = IOBSDNameMatching(mainPort, 0, String(cString: data.ifa_name)) else {
                 return nil
             }
             var iterator: io_iterator_t = 0
             defer {
                 IOObjectRelease(iterator)
             }
-            guard IOServiceGetMatchingServices(kIOMasterPortDefault, matchingDict, &iterator) == KERN_SUCCESS else {
+            guard IOServiceGetMatchingServices(mainPort, matchingDict, &iterator) == KERN_SUCCESS else {
                 return nil
             }
             var macAddress: [UInt8]?
