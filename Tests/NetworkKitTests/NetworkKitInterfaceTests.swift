@@ -56,6 +56,13 @@ final class NetworkKitInterfaceTests: XCTestCase {
         }
     }
 
+    func testInterfaceTypePerformance() {
+        guard let interface = Interface.allInterfaces().first(where: { $0.name == "en0" }) else { return }
+        measure {
+            _ = interface.type
+        }
+    }
+
     #if os(macOS) && canImport(SystemConfiguration)
 
     func testListAllHardwareInterfacesPerformance() {

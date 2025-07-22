@@ -13,7 +13,7 @@ public struct Interface: Sendable {
     public let name: String
 
     /// The type of the interface, such as Wi-Fi or loopback.
-    public let type: InterfaceType
+    public var type: InterfaceType { determineInterface() }
 
     /// The system interface index associated with the interface.
     public let index: UInt32
@@ -98,6 +98,9 @@ public struct Interface: Sendable {
     /// The SystemConfiguration interfaces of the interface
     @available(macOS 10.15, *)
     private let scInterface: SCInterface?
+
+    /// The NetworkKit NWInterface associated with this interface
+    public private(set) var nwInterface: NWInterface?
 }
 
 public extension Interface {
@@ -116,7 +119,6 @@ public extension Interface {
         // Get SystemConfiguration interface info for precise type determination
         #if os(macOS) && canImport(SystemConfiguration)
             let scInterfaces = listAllHardwareInterfaces()
-            let scTypeMapping = Dictionary(uniqueKeysWithValues: scInterfaces.map { ($0.bsdName, $0.type) })
         #else
             let scInterfaces: [SCInterface] = []
         #endif
@@ -129,13 +131,6 @@ public extension Interface {
             let isUp = firstIfaddr.isUp
             let isRunning = firstIfaddr.isRunning
             let supportsMulticast = firstIfaddr.supportsMulticast
-
-            // Determine interface type
-            #if os(macOS) && canImport(SystemConfiguration)
-                let type = determineInterfaceType(name: name, ifaddrs: ifaddrs, scTypeMapping: scTypeMapping)
-            #else
-                let type = determineInterfaceType(name: name, ifaddrs: ifaddrs)
-            #endif
 
             // Extract address family related info
             let linkLayerIfaddrs = ifaddrs.filter { $0.family == .link }
@@ -174,7 +169,6 @@ public extension Interface {
 
             return Interface(
                 name: name,
-                type: type,
                 index: index,
                 ipv4Addresses: ipv4Addresses,
                 ipv6Addresses: ipv6Addresses,
@@ -194,42 +188,29 @@ public extension Interface {
         }
         .sorted { $0.index < $1.index } // Sort by interface index
     }
+}
 
-    /// Determine interface type
-    #if os(macOS) && canImport(SystemConfiguration)
-        private static func determineInterfaceType(name: String,
-                                                   ifaddrs: [Ifaddrs],
-                                                   scTypeMapping: [String: InterfaceType])
-            -> InterfaceType
-        {
-            // 1. Prefer precise type from SystemConfiguration (macOS)
-            if let scType = scTypeMapping[name] {
-                return scType
-            }
+public extension Interface {
+    /// Associates a NWInterface with this Interface.
+    mutating func associateNWInterface(_ interface: NWInterface) {
+        nwInterface = interface
+    }
 
-            // 2. Fallback to heuristic determination
-            return determineInterfaceTypeHeuristic(name: name, ifaddrs: ifaddrs)
-        }
-    #else
-        private static func determineInterfaceType(name: String,
-                                                   ifaddrs: [Ifaddrs])
-            -> InterfaceType
-        {
-            return determineInterfaceTypeHeuristic(name: name, ifaddrs: ifaddrs)
-        }
-    #endif
+    private func determineInterface() -> Interface.InterfaceType {
+        // If the interface is loopback, return loopback
+        if linkLayerIfaddrs.contains(where: { $0.isLoopback }) { return .loopback }
+        // If we have a NWInterface, try to determine its type
+        if let nwInterface,
+           let type = InterfaceType(nwInterfaceType: nwInterface.type) { return type }
+        // If we have a SystemConfiguration interface, use its type
+        if let scInterface { return scInterface.type }
+        // Fallback to heuristic type determination
+        return determineInterfaceTypeHeuristic()
+    }
 
     /// Heuristic-based interface type determination
-    private static func determineInterfaceTypeHeuristic(name: String,
-                                                        ifaddrs: [Ifaddrs])
-        -> InterfaceType
-    {
-        // 1. Check if it's a loopback interface
-        if ifaddrs.contains(where: { $0.isLoopback }) {
-            return .loopback
-        }
-
-        // 2. Heuristic determination based on interface name
+    private func determineInterfaceTypeHeuristic() -> InterfaceType {
+        // Heuristic determination based on interface name
         let lowercaseName = name.lowercased()
         switch true {
         case lowercaseName.hasPrefix("lo"):
@@ -251,10 +232,6 @@ public extension Interface {
 
         case lowercaseName.hasPrefix("awdl"):
             return .other // Apple Wireless Direct Link (AirDrop)
-
-        case lowercaseName.hasPrefix("bluetooth"),
-             lowercaseName.hasPrefix("bt"):
-            return .bluetooth
 
         case lowercaseName.contains("cellular"),
              lowercaseName.hasPrefix("pdp_ip"):
@@ -304,6 +281,21 @@ public extension Interface {
             }
 
         #endif
+
+        init?(nwInterfaceType: NWInterface.InterfaceType) {
+            switch nwInterfaceType {
+            case .wifi:
+                self = .wifi
+            case .cellular:
+                self = .cellular
+            case .wiredEthernet:
+                self = .wiredEthernet
+            case .loopback:
+                self = .loopback
+            default:
+                return nil
+            }
+        }
 
         public var description: String {
             switch self {
