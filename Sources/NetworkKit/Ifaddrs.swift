@@ -77,16 +77,22 @@ public struct Ifaddrs: Sendable {
 }
 
 public extension Ifaddrs {
-    /// Returns all interfaces.
-    /// - Returns: An array of interfaces.
-    static func ifaddrsList() -> [Ifaddrs] {
+    typealias Predicate = @Sendable (_ ifName: String) -> Bool
+
+    /// List all ifaddrs that match the given predicate.
+    /// - Parameter predicate: The predicate to filter ifaddrs by.
+    /// - Returns: All matching ifaddrs.
+    static func ifaddrsList(matching predicate: @escaping Predicate = { _ in true }) -> [Ifaddrs] {
         var list = [Ifaddrs]()
         var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
         if getifaddrs(&ifaddrsPtr) == 0 {
             var ifaddrPtr = ifaddrsPtr
             while ifaddrPtr != nil {
                 let ifaddrs = ifaddrPtr!.pointee
-                list.append(Ifaddrs(ifaddrs: ifaddrs))
+                let name = String(cString: ifaddrs.ifa_name)
+                if predicate(name) {
+                    list.append(Ifaddrs(name: name, ifaddrs: ifaddrs))
+                }
                 ifaddrPtr = ifaddrs.ifa_next
             }
             freeifaddrs(ifaddrsPtr)
@@ -159,8 +165,7 @@ extension Ifaddrs: CustomStringConvertible, CustomDebugStringConvertible {
 }
 
 private extension Ifaddrs {
-    init(ifaddrs: ifaddrs) {
-        let name = String(cString: ifaddrs.ifa_name)
+    init(name: String, ifaddrs: ifaddrs) {
         let index = if_nametoindex(ifaddrs.ifa_name)
         let family = Self.extractFamily(ifaddrs)
         let address = Self.extractAddress(ifaddrs.ifa_addr)

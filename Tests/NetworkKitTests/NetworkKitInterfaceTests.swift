@@ -56,6 +56,12 @@ final class NetworkKitInterfaceTests: XCTestCase {
         }
     }
 
+    func testAllInterfacesPredicatePerformance() {
+        measure {
+            _ = Interface.interfaces { $0 == "en0" }
+        }
+    }
+
     func testInterfaceTypePerformance() {
         guard let interface = Interface.allInterfaces().first(where: { $0.name == "en0" }) else { return }
         measure {
@@ -76,6 +82,12 @@ final class NetworkKitInterfaceTests: XCTestCase {
     func testIfaddrsListPerformance() {
         measure {
             _ = Ifaddrs.ifaddrsList()
+        }
+    }
+
+    func testIfaddrsListPredicatePerformance() {
+        measure {
+            _ = Ifaddrs.ifaddrsList { $0 == "en0" }
         }
     }
 }

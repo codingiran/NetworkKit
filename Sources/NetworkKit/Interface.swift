@@ -96,8 +96,7 @@ public struct Interface: Sendable {
     private let ipv6Ifaddrs: [Ifaddrs]
 
     /// The SystemConfiguration interfaces of the interface
-    @available(macOS 10.15, *)
-    private let scInterface: SCInterface?
+    public private(set) var scInterface: SCInterface?
 
     /// The NetworkKit NWInterface associated with this interface
     public private(set) var nwInterface: NWInterface?
@@ -105,23 +104,21 @@ public struct Interface: Sendable {
 
 public extension Interface {
     /// Returns all interfaces on the system.
-    ///
-    /// - Returns: An array of `Interface` objects representing all interfaces on the system.
-    ///            Returns an empty array if no interfaces are found.
+    /// - Returns: All interfaces.
     static func allInterfaces() -> [Interface] {
-        let ifaddrsList = Ifaddrs.ifaddrsList()
+        interfaces { _ in true }
+    }
+
+    /// Returns all interfaces on the system matching the given predicate.
+    /// - Parameter predicate: The predicate to filter interfaces by.
+    /// - Returns: All matching interfaces.
+    static func interfaces(matching predicate: @escaping Ifaddrs.Predicate) -> [Interface] {
+        let ifaddrsList = Ifaddrs.ifaddrsList(matching: predicate)
 
         guard !ifaddrsList.isEmpty else { return [] }
 
         // Group interfaces by name
         let groupedByName = Dictionary(grouping: ifaddrsList, by: { $0.name })
-
-        // Get SystemConfiguration interface info for precise type determination
-        #if os(macOS) && canImport(SystemConfiguration)
-            let scInterfaces = listAllHardwareInterfaces()
-        #else
-            let scInterfaces: [SCInterface] = []
-        #endif
 
         // Convert each group to a single Interface
         return groupedByName.compactMap { name, ifaddrs in
@@ -164,9 +161,6 @@ public extension Interface {
             // Get ethernet address (network-used address) from AF_LINK
             let ethernetAddress = linkLayerIfaddrs.first?.address
 
-            // Get SystemConfiguration interface
-            let scInterface = scInterfaces.first { $0.bsdName == name }
-
             return Interface(
                 name: name,
                 index: index,
@@ -182,8 +176,7 @@ public extension Interface {
                 ethernetAddress: ethernetAddress,
                 linkLayerIfaddrs: linkLayerIfaddrs,
                 ipv4Ifaddrs: ipv4Ifaddrs,
-                ipv6Ifaddrs: ipv6Ifaddrs,
-                scInterface: scInterface
+                ipv6Ifaddrs: ipv6Ifaddrs
             )
         }
         .sorted { $0.index < $1.index } // Sort by interface index
@@ -196,12 +189,22 @@ public extension Interface {
         nwInterface = interface
     }
 
+    /// Associates a SCInterface with this Interface.
+    @available(macOS 10.15, *)
+    @available(iOS, unavailable)
+    @available(tvOS, unavailable)
+    @available(watchOS, unavailable)
+    @available(visionOS, unavailable)
+    @available(macCatalyst, unavailable)
+    mutating func associateSCInterface(_ interface: SCInterface) {
+        scInterface = interface
+    }
+
     private func determineInterface() -> Interface.InterfaceType {
         // If the interface is loopback, return loopback
         if linkLayerIfaddrs.contains(where: { $0.isLoopback }) { return .loopback }
         // If we have a NWInterface, try to determine its type
-        if let nwInterface,
-           let type = InterfaceType(nwInterfaceType: nwInterface.type) { return type }
+        if let nwInterface, let type = InterfaceType(nwInterfaceType: nwInterface.type) { return type }
         // If we have a SystemConfiguration interface, use its type
         if let scInterface { return scInterface.type }
         // Fallback to heuristic type determination
@@ -209,6 +212,7 @@ public extension Interface {
     }
 
     /// Heuristic-based interface type determination
+    /// It's not perfect, but this is a fallback when no NWInterface or SCInterface is not provided.
     private func determineInterfaceTypeHeuristic() -> InterfaceType {
         // Heuristic determination based on interface name
         let lowercaseName = name.lowercased()
@@ -239,6 +243,23 @@ public extension Interface {
 
         default:
             return .other
+        }
+    }
+}
+
+public extension MutableCollection where Element == Interface {
+    @available(macOS 10.15, *)
+    @available(iOS, unavailable)
+    @available(tvOS, unavailable)
+    @available(watchOS, unavailable)
+    @available(visionOS, unavailable)
+    @available(macCatalyst, unavailable)
+    mutating func associateSCNetworkInterface(_ scInterfaces: [Interface.SCInterface] = Interface.listAllHardwareInterfaces()) {
+        guard !scInterfaces.isEmpty else { return }
+        mutatingForEach { interface in
+            if let scInterface = scInterfaces.first(where: { $0.bsdName == interface.name }) {
+                interface.associateSCInterface(scInterface)
+            }
         }
     }
 }
@@ -321,7 +342,6 @@ public extension Interface {
     }
 }
 
-@available(macOS 10.15, *)
 public extension Interface {
     struct SCInterface: Sendable, Codable, Equatable, CustomStringConvertible {
         public let bsdName: String
@@ -336,13 +356,20 @@ public extension Interface {
 }
 
 #if os(macOS) && canImport(SystemConfiguration)
-
     import SystemConfiguration
+#endif
 
-    public extension Interface {
-        /// The list of all interfaces on the system.
-        /// Alike `networksetup -listallhardwareports`
-        static func listAllHardwareInterfaces() -> [SCInterface] {
+public extension Interface {
+    /// The list of all interfaces on the system.
+    /// Alike `networksetup -listallhardwareports`
+    @available(macOS 10.15, *)
+    @available(iOS, unavailable)
+    @available(tvOS, unavailable)
+    @available(watchOS, unavailable)
+    @available(visionOS, unavailable)
+    @available(macCatalyst, unavailable)
+    static func listAllHardwareInterfaces() -> [SCInterface] {
+        #if os(macOS) && canImport(SystemConfiguration)
             guard let allInterfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] else { return [] }
             let interfaceList: [SCInterface] = allInterfaces.compactMap { interface in
                 guard let bsdName = SCNetworkInterfaceGetBSDName(interface),
@@ -359,10 +386,11 @@ public extension Interface {
                                    type: .init(scInterfaceType: type))
             }
             return interfaceList
-        }
+        #else
+            return []
+        #endif
     }
-
-#endif
+}
 
 extension Interface: Equatable, Hashable {
     public static func == (lhs: Interface, rhs: Interface) -> Bool {

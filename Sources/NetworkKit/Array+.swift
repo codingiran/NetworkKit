@@ -37,3 +37,11 @@ public extension Array {
         }
     }
 }
+
+public extension MutableCollection {
+    mutating func mutatingForEach(_ body: (inout Element) -> Void) {
+        for i in indices {
+            body(&self[i])
+        }
+    }
+}
