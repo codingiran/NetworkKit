@@ -340,6 +340,8 @@ public extension Interface {
     import SystemConfiguration
 
     public extension Interface {
+        /// The list of all interfaces on the system.
+        /// Alike `networksetup -listallhardwareports`
         static func listAllHardwareInterfaces() -> [SCInterface] {
             guard let allInterfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] else { return [] }
             let interfaceList: [SCInterface] = allInterfaces.compactMap { interface in
@@ -362,7 +364,7 @@ public extension Interface {
 
 #endif
 
-extension Interface: Equatable {
+extension Interface: Equatable, Hashable {
     public static func == (lhs: Interface, rhs: Interface) -> Bool {
         lhs.name == rhs.name &&
             lhs.type == rhs.type &&
@@ -377,6 +379,22 @@ extension Interface: Equatable {
             lhs.isRunning == rhs.isRunning &&
             lhs.supportsMulticast == rhs.supportsMulticast &&
             lhs.ethernetAddress == rhs.ethernetAddress
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(type)
+        hasher.combine(index)
+        hasher.combine(ipv4Addresses)
+        hasher.combine(ipv6Addresses)
+        hasher.combine(ipv4Netmask)
+        hasher.combine(ipv6Netmask)
+        hasher.combine(ipv4Broadcast)
+        hasher.combine(ipv6Broadcast)
+        hasher.combine(isUp)
+        hasher.combine(isRunning)
+        hasher.combine(supportsMulticast)
+        hasher.combine(ethernetAddress)
     }
 }
 
