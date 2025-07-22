@@ -268,25 +268,22 @@ public extension Interface {
 
 public extension Interface {
     enum InterfaceType: Sendable, Codable, Equatable, CustomStringConvertible {
-        /// A Wi-Fi link
+        /// The network interface type used for communication over Wi-Fi networks.
         case wifi
 
-        /// A Cellular link
+        /// The network interface type used for communication over cellular networks.
         case cellular
 
-        /// A Wired Ethernet link
+        /// The network interface type used for communication over wired Ethernet networks.
         case wiredEthernet
 
-        /// A Bluetooth link
-        case bluetooth
-
-        /// A Bridge link
+        /// The network interface type used for communication over bridge networks.
         case bridge
 
-        /// The Loopback Interface
+        /// The network interface type used for communication over local loopback networks.
         case loopback
 
-        /// A virtual or otherwise unknown interface type
+        /// The network interface type used for communication over virtual networks or networks of unknown types.
         case other
 
         #if os(macOS) && canImport(SystemConfiguration)
@@ -299,8 +296,6 @@ public extension Interface {
                     self = .wiredEthernet
                 case kSCNetworkInterfaceTypeIEEE80211, kSCNetworkInterfaceTypeWWAN:
                     self = .wifi
-                case kSCNetworkInterfaceTypeBluetooth:
-                    self = .bluetooth
                 case InterfaceType._kSCNetworkInterfaceTypeBridge:
                     self = .bridge
                 default:
@@ -315,7 +310,6 @@ public extension Interface {
             case .wifi: return "Wi-Fi"
             case .cellular: return "Cellular"
             case .wiredEthernet: return "Wired Ethernet"
-            case .bluetooth: return "Bluetooth"
             case .bridge: return "Bridge"
             case .loopback: return "Loopback"
             case .other: return "Other"
