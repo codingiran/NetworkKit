@@ -297,6 +297,17 @@ public extension Interface {
             }
         }
 
+        public var nwInterfaceType: NWInterface.InterfaceType {
+            switch self {
+            case .wifi: return .wifi
+            case .cellular: return .cellular
+            case .wiredEthernet: return .wiredEthernet
+            case .loopback: return .loopback
+            case .other: return .other
+            case .bridge: return .other // NWInterface does not have a bridge type, return other for now
+            }
+        }
+
         public var description: String {
             switch self {
             case .wifi: return "Wi-Fi"
