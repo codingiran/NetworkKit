@@ -228,6 +228,12 @@ public extension Interface {
         case lowercaseName.hasPrefix("bridge"):
             return .bridge
 
+        case lowercaseName.hasPrefix("feth"):
+            // Starting in 10.13 Darwin contains something called a “fake Ethernet” device.
+            // They start with “feth”, Apple considers it as wired Ethernet. Plsase see:
+            // https://apple.stackexchange.com/questions/337715/fake-ethernet-interfaces-feth-if-fake-anyone-ever-seen-this
+            return .wiredEthernet
+
         case lowercaseName.hasPrefix("utun"),
              lowercaseName.hasPrefix("tun"),
              lowercaseName.hasPrefix("tap"),
