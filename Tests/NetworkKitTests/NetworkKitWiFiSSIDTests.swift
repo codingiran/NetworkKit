@@ -195,6 +195,15 @@ final class NetworkKitWiFiSSIDTests: XCTestCase {
             }
         }
 
+        @available(macOS 10.15, *)
+        func testWiFiSSIDTryLegacyMethodPerformance() {
+            // Legacy methods might be slower
+            measure {
+//                _ = WiFiSSID.currentWiFiSSID(tryLegacy: true)
+                _ = WiFiSSID.currentWiFiSSID(tryLegacy: true, interfaceName: "en0")
+            }
+        }
+
     #endif
 
     func testWiFiSSIDSendableConformance() {
