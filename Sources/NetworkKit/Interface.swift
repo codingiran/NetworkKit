@@ -223,6 +223,8 @@ public extension Interface {
         case lowercaseName.hasPrefix("en"):
             // en0 is usually the primary network interface, typically Wi-Fi on iPhone and MacBook
             // en1, en2 etc. might be Ethernet or other interfaces
+            // ⚠️ This is a heuristic, not guaranteed to be accurate for all devices.
+            // Especially on macOS, iMacs, Mac minis and other desktops are usually wired at en0 and wireless at en1.
             return name == "en0" ? .wifi : .wiredEthernet
 
         case lowercaseName.hasPrefix("bridge"):
