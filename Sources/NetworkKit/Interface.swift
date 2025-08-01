@@ -300,6 +300,16 @@ public extension Interface {
             .wiredEthernet(isFake: name.lowercased().hasPrefix("feth"))
         }
 
+        /// Returns true if the interface is a fake Ethernet interface.
+        public var isFakeEthernet: Bool {
+            switch self {
+            case let .wiredEthernet(isFake):
+                return isFake
+            default:
+                return false
+            }
+        }
+
         #if os(macOS) && canImport(SystemConfiguration)
 
             private static var _kSCNetworkInterfaceTypeBridge: CFString { "Bridge" as CFString }
