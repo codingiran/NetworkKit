@@ -204,7 +204,7 @@ public extension Interface {
         // If the interface is loopback, return loopback
         if linkLayerIfaddrs.contains(where: { $0.isLoopback }) { return .loopback }
         // If we have a NWInterface, try to determine its type
-        if let nwInterface, let type = InterfaceType(nwInterfaceType: nwInterface.type) { return type }
+        if let nwInterface, let type = InterfaceType(nwInterfaceType: nwInterface.type, interfaceName: name) { return type }
         // If we have a SystemConfiguration interface, use its type
         if let scInterface { return scInterface.type }
         // Fallback to heuristic type determination
@@ -220,27 +220,24 @@ public extension Interface {
         case lowercaseName.hasPrefix("lo"):
             return .loopback
 
+        case lowercaseName.hasPrefix("bridge"):
+            return .bridge
+
         case lowercaseName.hasPrefix("en"):
             // en0 is usually the primary network interface, typically Wi-Fi on iPhone and MacBook
             // en1, en2 etc. might be Ethernet or other interfaces
             // ⚠️ This is a heuristic, not guaranteed to be accurate for all devices.
             // Especially on macOS, iMacs, Mac minis and other desktops are usually wired at en0 and wireless at en1.
-            return name == "en0" ? .wifi : .wiredEthernet
-
-        case lowercaseName.hasPrefix("bridge"):
-            return .bridge
+            return name == "en0" ? .wifi : .wiredEthernet()
 
         case lowercaseName.hasPrefix("feth"):
-            // Starting in 10.13 Darwin contains something called a “fake Ethernet” device.
-            // They start with “feth”, Apple considers it as wired Ethernet. Plsase see:
-            // https://apple.stackexchange.com/questions/337715/fake-ethernet-interfaces-feth-if-fake-anyone-ever-seen-this
-            return .wiredEthernet
+            return .wiredEthernet(isFake: true)
 
         case lowercaseName.hasPrefix("utun"),
              lowercaseName.hasPrefix("tun"),
              lowercaseName.hasPrefix("tap"),
              lowercaseName.hasPrefix("ipsec"):
-            return .other // Tunnel interfaces
+            return .other // VPN interfaces
 
         case lowercaseName.hasPrefix("awdl"):
             return .other // Apple Wireless Direct Link (AirDrop)
@@ -273,7 +270,7 @@ public extension MutableCollection where Element == Interface {
 }
 
 public extension Interface {
-    enum InterfaceType: Sendable, Codable, Equatable, CustomStringConvertible {
+    enum InterfaceType: Sendable, Codable, Hashable, CustomStringConvertible {
         /// The network interface type used for communication over Wi-Fi networks.
         case wifi
 
@@ -281,7 +278,10 @@ public extension Interface {
         case cellular
 
         /// The network interface type used for communication over wired Ethernet networks.
-        case wiredEthernet
+        /// Starting in 10.13 Darwin contains something called a “fake Ethernet” device.
+        /// They start with “feth”, Apple considers it as wired Ethernet. Plsase see:
+        /// https://apple.stackexchange.com/questions/337715/fake-ethernet-interfaces-feth-if-fake-anyone-ever-seen-this
+        case wiredEthernet(isFake: Bool = false)
 
         /// The network interface type used for communication over bridge networks.
         case bridge
@@ -292,14 +292,22 @@ public extension Interface {
         /// The network interface type used for communication over virtual networks or networks of unknown types.
         case other
 
+        /// Creates a new `InterfaceType` instance for a wired Ethernet interface.
+        /// - Parameters:
+        ///   - name: The name of the interface.
+        /// - Returns: A new `InterfaceType` instance for a wired Ethernet interface.
+        static func wiredEthernet(with name: String) -> InterfaceType {
+            .wiredEthernet(isFake: name.lowercased().hasPrefix("feth"))
+        }
+
         #if os(macOS) && canImport(SystemConfiguration)
 
             private static var _kSCNetworkInterfaceTypeBridge: CFString { "Bridge" as CFString }
 
-            init(scInterfaceType: CFString) {
+            init(scInterfaceType: CFString, interfaceName: String) {
                 switch scInterfaceType {
                 case kSCNetworkInterfaceTypeEthernet:
-                    self = .wiredEthernet
+                    self = .wiredEthernet(with: interfaceName)
                 case kSCNetworkInterfaceTypeIEEE80211, kSCNetworkInterfaceTypeWWAN:
                     self = .wifi
                 case InterfaceType._kSCNetworkInterfaceTypeBridge:
@@ -311,14 +319,14 @@ public extension Interface {
 
         #endif
 
-        init?(nwInterfaceType: NWInterface.InterfaceType) {
+        init?(nwInterfaceType: NWInterface.InterfaceType, interfaceName: String) {
             switch nwInterfaceType {
             case .wifi:
                 self = .wifi
             case .cellular:
                 self = .cellular
             case .wiredEthernet:
-                self = .wiredEthernet
+                self = .wiredEthernet(with: interfaceName)
             case .loopback:
                 self = .loopback
             default:
@@ -341,7 +349,7 @@ public extension Interface {
             switch self {
             case .wifi: return "Wi-Fi"
             case .cellular: return "Cellular"
-            case .wiredEthernet: return "Wired Ethernet"
+            case let .wiredEthernet(isFake): return isFake ? "Wired Ethernet(Fake)" : "Wired Ethernet"
             case .bridge: return "Bridge"
             case .loopback: return "Loopback"
             case .other: return "Other"
@@ -391,7 +399,7 @@ public extension Interface {
                                    localizedDisplayName:
                                    localizedDisplayName as String,
                                    hardwareAddress: hardwareAddress as String,
-                                   type: .init(scInterfaceType: type))
+                                   type: .init(scInterfaceType: type, interfaceName: bsdName as String))
             }
             return interfaceList
         #else
