@@ -67,7 +67,12 @@ public enum WiFiSSID: Sendable {
     public static func currentSSIDLegacy(interfaceName: String? = currentInterfaceName()) -> String? {
         #if os(macOS)
             guard let interfaceName, !interfaceName.isEmpty else { return nil }
-            return currentSSID(of: interfaceName)
+            let ssid = currentSSID(of: interfaceName)
+            if #available(macOS 15.6, *), ssid?.lowercased() == "<redacted>" {
+                // Start macOS 15.6, the SSID from `ipconfig getsummary` is "<redacted>" if location permission is unauthorized
+                return nil
+            }
+            return ssid
         #else
             return nil
         #endif
@@ -140,8 +145,12 @@ public enum WiFiSSID: Sendable {
             do {
                 try process.run()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                return output
+                let ssid = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if #available(macOS 15.7, *), ssid?.lowercased() == "<redacted>" {
+                    // Start macOS 15.7, the SSID from `system_profiler SPAirPortDataType` is "<redacted>" if location permission is unauthorized
+                    return nil
+                }
+                return ssid
             } catch {
                 return nil
             }
