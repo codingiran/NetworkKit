@@ -105,7 +105,7 @@ extension Endpoint {
     /// Returns a new endpoint with its host re-resolved to an IP address.
     /// - Throws: `DNSResolutionError` if DNS resolution fails.
     func withReresolvedIP() throws -> Endpoint {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
             let hostname: String
             switch host {
             case let .name(name, _):
