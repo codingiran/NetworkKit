@@ -12,5 +12,5 @@ import Foundation
     #error("NetworkKit doesn't support Swift versions below 5.10.")
 #endif
 
-/// Current NetworkKit version Release 0.3.0. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
-public let version = "0.3.0"
+/// Current NetworkKit version Release 0.3.1. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
+public let version = "0.3.1"
